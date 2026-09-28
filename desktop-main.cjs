@@ -5,7 +5,7 @@
 
 const { app, BrowserWindow, Menu, Tray, ipcMain, shell } = require('electron');
 const path = require('path');
-const { startBackend } = require('./desktop-server.cjs');
+const { startBackend, checkForHotUpdates } = require('./desktop-server.cjs');
 
 let mainWindow = null;
 let tray = null;
@@ -217,6 +217,14 @@ app.whenReady().then(async () => {
     createApplicationMenu();
     await createMainWindow(activePort);
     createSystemTray();
+
+    // Trigger instant background auto-update check from GitHub Pages
+    checkForHotUpdates(() => {
+      console.log('[Electron Main] Fresh deployment synchronized! Hot-reloading active interface...');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.reload();
+      }
+    });
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow(activePort);

@@ -23,6 +23,37 @@ namespace DBSTEAM
                 target = devPath;
             }
 
+            // Pre-launch Instant Cache Sync: If local project dist is newer, sync to AppData web cache
+            try
+            {
+                string devDist = @"D:\Projects\DBSTEAM\dist";
+                string webCache = Path.Combine(localAppData, "DBSTEAM", "web");
+                if (Directory.Exists(devDist))
+                {
+                    string devIndex = Path.Combine(devDist, "index.html");
+                    string cacheIndex = Path.Combine(webCache, "index.html");
+                    if (File.Exists(devIndex))
+                    {
+                        if (!File.Exists(cacheIndex) || File.GetLastWriteTimeUtc(devIndex) > File.GetLastWriteTimeUtc(cacheIndex))
+                        {
+                            Directory.CreateDirectory(webCache);
+                            Directory.CreateDirectory(Path.Combine(webCache, "assets"));
+                            File.Copy(devIndex, cacheIndex, true);
+                            string devAssets = Path.Combine(devDist, "assets");
+                            if (Directory.Exists(devAssets))
+                            {
+                                foreach (string file in Directory.GetFiles(devAssets))
+                                {
+                                    string destFile = Path.Combine(webCache, "assets", Path.GetFileName(file));
+                                    File.Copy(file, destFile, true);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { /* Non-blocking background sync */ }
+
             if (!string.IsNullOrEmpty(target))
             {
                 ProcessStartInfo psi = new ProcessStartInfo

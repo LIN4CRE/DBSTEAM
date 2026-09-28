@@ -6,6 +6,7 @@
 const express = require('express');
 const path = require('path');
 const http = require('http');
+const fs = require('fs');
 
 function createServer() {
   const app = express();
@@ -298,16 +299,124 @@ Return ONLY valid JSON array with schema: [{"appId": 1938090, "title": "Game Tit
     }
   });
 
-  // Serve static assets from production dist folder
-  const staticDir = path.join(__dirname, 'dist');
-  app.use(express.static(staticDir));
+  // Dynamic static assets directory resolution:
+  const localAppData = process.env.LOCALAPPDATA || (process.platform === 'darwin' ? path.join(process.env.HOME || '', 'Library', 'Application Support') : path.join(process.env.HOME || '', '.config'));
+  const webCacheDir = path.join(localAppData, 'DBSTEAM', 'web');
+  const devDistDir = path.join('D:', 'Projects', 'DBSTEAM', 'dist');
+  const bundledDir = path.join(__dirname, 'dist');
 
-  // SPA fallback to index.html
+  function getActiveStaticDir() {
+    // 1. If hot-updated web cache exists and has index.html, use it (highest priority for remote updates)
+    if (fs.existsSync(path.join(webCacheDir, 'index.html'))) {
+      return webCacheDir;
+    }
+    // 2. If local developer dist exists and has index.html, use it (instant local development changes)
+    if (fs.existsSync(path.join(devDistDir, 'index.html'))) {
+      return devDistDir;
+    }
+    // 3. Fallback to bundled directory
+    return bundledDir;
+  }
+
+  // API Route: Check for updates status
+  app.get('/api/app/update-status', (req, res) => {
+    try {
+      const activeDir = getActiveStaticDir();
+      res.json({
+        activeDir,
+        isCached: activeDir === webCacheDir,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/app/sync-updates', async (req, res) => {
+    const updated = await checkForHotUpdates();
+    res.json({ updated, activeDir: getActiveStaticDir() });
+  });
+
+  // Serve static assets from active static directory
+  app.use((req, res, next) => {
+    const activeDir = getActiveStaticDir();
+    express.static(activeDir)(req, res, next);
+  });
+
+  // SPA fallback to active index.html
   app.get('*', (req, res) => {
-    res.sendFile(path.join(staticDir, 'index.html'));
+    const activeDir = getActiveStaticDir();
+    res.sendFile(path.join(activeDir, 'index.html'));
   });
 
   return app;
+}
+
+// Background Hot-Updater from GitHub Pages
+async function checkForHotUpdates(onUpdateCallback) {
+  try {
+    const remoteIndexUrl = 'https://lin4cre.github.io/DBSTEAM/index.html';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const resp = await fetch(remoteIndexUrl, { signal: controller.signal, cache: 'no-store' });
+    clearTimeout(timeoutId);
+    if (!resp.ok) return false;
+
+    const remoteHtml = await resp.text();
+    const localAppData = process.env.LOCALAPPDATA || (process.platform === 'darwin' ? path.join(process.env.HOME || '', 'Library', 'Application Support') : path.join(process.env.HOME || '', '.config'));
+    const webCacheDir = path.join(localAppData, 'DBSTEAM', 'web');
+    const devDistDir = path.join('D:', 'Projects', 'DBSTEAM', 'dist');
+    const bundledDir = path.join(__dirname, 'dist');
+
+    let currentHtml = '';
+    const activeDir = fs.existsSync(path.join(webCacheDir, 'index.html')) ? webCacheDir : (fs.existsSync(path.join(devDistDir, 'index.html')) ? devDistDir : bundledDir);
+    const activeIndex = path.join(activeDir, 'index.html');
+    if (fs.existsSync(activeIndex)) {
+      try { currentHtml = fs.readFileSync(activeIndex, 'utf8'); } catch {}
+    }
+
+    // Compare HTML contents
+    if (remoteHtml && remoteHtml.trim() !== currentHtml.trim()) {
+      console.log('[Auto-Updater] Newer web deployment detected. Syncing assets...');
+      if (!fs.existsSync(webCacheDir)) {
+        fs.mkdirSync(webCacheDir, { recursive: true });
+      }
+      const assetsDir = path.join(webCacheDir, 'assets');
+      if (!fs.existsSync(assetsDir)) {
+        fs.mkdirSync(assetsDir, { recursive: true });
+      }
+
+      // Extract asset files from remote HTML (e.g. assets/index-xxx.js and assets/index-xxx.css)
+      const assetMatches = [...remoteHtml.matchAll(/(?:src|href)="(?:\.\/)?(assets\/[^"]+)"/g)];
+      for (const match of assetMatches) {
+        const assetRel = match[1];
+        const assetUrl = `https://lin4cre.github.io/DBSTEAM/${assetRel}`;
+        const assetDest = path.join(webCacheDir, assetRel);
+        try {
+          const aResp = await fetch(assetUrl);
+          if (aResp.ok) {
+            const buf = await aResp.arrayBuffer();
+            fs.writeFileSync(assetDest, Buffer.from(buf));
+            console.log(`[Auto-Updater] Synced: ${assetRel}`);
+          }
+        } catch (e) {
+          console.warn(`[Auto-Updater] Failed asset fetch: ${assetRel}`, e.message);
+        }
+      }
+
+      fs.writeFileSync(path.join(webCacheDir, 'index.html'), remoteHtml, 'utf8');
+      console.log('[Auto-Updater] Hot update synchronized successfully to ' + webCacheDir);
+      if (typeof onUpdateCallback === 'function') {
+        onUpdateCallback();
+      }
+      return true;
+    } else {
+      console.log('[Auto-Updater] Web assets are up to date.');
+    }
+  } catch (err) {
+    console.warn('[Auto-Updater] Update check skipped (offline or timeout):', err.message);
+  }
+  return false;
 }
 
 function startBackend(desiredPort = 3000) {
@@ -338,4 +447,4 @@ function startBackend(desiredPort = 3000) {
   });
 }
 
-module.exports = { startBackend, createServer };
+module.exports = { startBackend, createServer, checkForHotUpdates };
