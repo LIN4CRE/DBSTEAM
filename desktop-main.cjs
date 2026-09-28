@@ -50,7 +50,18 @@ async function createMainWindow(port) {
     console.error('Failed to load local URL:', err);
   });
 
-  mainWindow.focus();
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
+  // Fallback visibility
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }, 400);
 
   // Open target="_blank" links in default external browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -201,7 +212,13 @@ ipcMain.on('window-maximize', () => {
 });
 
 ipcMain.on('window-close', () => {
-  if (mainWindow) mainWindow.hide();
+  if (mainWindow) mainWindow.close();
+});
+
+ipcMain.on('open-external', (event, url) => {
+  if (url && typeof url === 'string') {
+    shell.openExternal(url);
+  }
 });
 
 app.whenReady().then(async () => {
