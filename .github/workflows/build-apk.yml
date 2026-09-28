@@ -22,53 +22,43 @@ permissions:
 jobs:
   build-apk:
     name: Build Android APK
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows]
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
       - name: Install Dependencies
-        run: npm install
+        shell: pwsh
+        run: bun install
 
       - name: Build Web Application
-        run: npm run build
+        shell: pwsh
+        run: bun run build
 
       - name: Sync Capacitor Android
-        run: npx cap sync android
-
-      - name: Make Gradle Executable
-        run: chmod +x android/gradlew
+        shell: pwsh
+        run: bunx cap sync android
 
       - name: Build Android App (APK)
+        shell: pwsh
         run: |
+          "sdk.dir=D:\\Android\\Sdk" | Out-File -FilePath android\local.properties -Encoding utf8
           cd android
-          ./gradlew assembleDebug --stacktrace
+          .\gradlew.bat assembleDebug --stacktrace
 
       - name: Verify Generated APK
         id: find_apk
+        shell: pwsh
         run: |
-          APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            echo "ERROR: APK not found!"
+          $apk = Get-ChildItem -Path "android\app\build\outputs\apk\debug\*.apk" | Select-Object -First 1
+          if (-not $apk) {
+            Write-Error "ERROR: APK not found!"
             exit 1
-          fi
-          echo "Found APK at: $APK_PATH"
-          cp "$APK_PATH" ./DBSTEAM-v1.0.0.apk
-          echo "apk_path=./DBSTEAM-v1.0.0.apk" >> $GITHUB_OUTPUT
+          }
+          Write-Host "Found APK at: $($apk.FullName)"
+          Copy-Item $apk.FullName -Destination "./DBSTEAM-v1.0.0.apk" -Force
+          "apk_path=./DBSTEAM-v1.0.0.apk" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
