@@ -36,7 +36,7 @@ async function createMainWindow(port) {
     title: 'DBSTEAM - Next-Gen Steam & Gaming Operations Hub',
     icon: path.join(__dirname, 'assets', 'icon.ico'),
     backgroundColor: '#0a0d14',
-    show: false,
+    show: true,
     autoHideMenuBar: false,
     webPreferences: {
       nodeIntegration: false,
@@ -45,14 +45,12 @@ async function createMainWindow(port) {
     }
   });
 
-  // Load backend URL
   const targetUrl = `http://127.0.0.1:${port}`;
-  await mainWindow.loadURL(targetUrl);
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-    mainWindow.focus();
+  mainWindow.loadURL(targetUrl).catch((err) => {
+    console.error('Failed to load local URL:', err);
   });
+
+  mainWindow.focus();
 
   // Open target="_blank" links in default external browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -60,12 +58,10 @@ async function createMainWindow(port) {
     return { action: 'deny' };
   });
 
-  mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
-      event.preventDefault();
-      mainWindow.hide();
-    }
-    return false;
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    app.isQuitting = true;
+    app.quit();
   });
 }
 
