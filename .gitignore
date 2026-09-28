@@ -1,8 +1,34 @@
+# Dependencies
 node_modules/
-build/
+.pnpm-store/
+
+# Production build outputs
 dist/
+build/
 coverage/
-.DS_Store
-*.log
+
+# Environment files
 .env*
 !.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Android build outputs & local properties
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/*.iml
+android/.idea/
+*.keystore
+*.jks
+*.apk
