@@ -32,11 +32,11 @@ export const AccountProvisioningWalkthrough: React.FC<AccountProvisioningWalkthr
   availableGames,
   existingAccountsCount
 }) => {
-  // Default email starting with user's desired pattern
-  const [emailInput, setEmailInput] = useState(`100+top_paid-${existingAccountsCount + 1}@proton.me`);
+  // Default email starting with user's custom Catch-All domain
+  const [emailInput, setEmailInput] = useState(`gamer-${existingAccountsCount + 1}@linacre.site`);
   const [usernameInput, setUsernameInput] = useState(`TopPaid_Gamer_${existingAccountsCount + 1}`);
   const [passwordInput, setPasswordInput] = useState('X9#vQ8$mK2!wL4zP');
-  const [selectedDomain, setSelectedDomain] = useState<'proton.me' | 'tuta.io' | 'duck.com' | 'custom'>('proton.me');
+  const [selectedDomain, setSelectedDomain] = useState<'linacre.site' | 'proton.me' | 'tuta.io' | 'duck.com' | 'custom'>('linacre.site');
   const [notesInput, setNotesInput] = useState('Top-tier paid titles pack ready for giveaway handoff.');
   
   // Selected games to initialize
@@ -91,8 +91,8 @@ export const AccountProvisioningWalkthrough: React.FC<AccountProvisioningWalkthr
     setCurrentStep(2);
     setSequenceLogs(prev => [
       ...prev,
-      `[00:01.4] [EMAIL_PROVIDER] Selected no-phone provider (${selectedDomain}).`,
-      `[00:01.8] [EMAIL_PROVIDER] Verifying MX routing and disposable protection check: PASSED.`,
+      `[00:01.4] [EMAIL_PROVIDER] Selected domain: ${selectedDomain} (Catch-All Auto-Forwarding).`,
+      `[00:01.8] [EMAIL_PROVIDER] Verifying MX routing & catch-all delivery pipeline: ACTIVE.`,
       `[00:02.1] [SESSION] Storing isolated ephemeral session fingerprint in local memory.`
     ]);
 
@@ -214,7 +214,7 @@ export const AccountProvisioningWalkthrough: React.FC<AccountProvisioningWalkthr
                   type="email"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
-                  placeholder="100+top_paid-1@proton.me"
+                  placeholder="gamer-1@linacre.site"
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-10 pr-24 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono"
                 />
                 <button
@@ -227,17 +227,18 @@ export const AccountProvisioningWalkthrough: React.FC<AccountProvisioningWalkthr
                 </button>
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
-                Tip: Email aliases like <code className="text-cyan-300">100+top_paid-X@...</code> allow unlimited unique account registrations under a single inbox.
+                Tip: Catch-All on <code className="text-cyan-300">linacre.site</code> forwards all incoming emails to your master inbox. No manual mailbox creation required!
               </p>
             </div>
 
             {/* Provider presets */}
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Anonymous / Phone-Free Email Providers
+                Anonymous / Catch-All Email Providers
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
+                  { domain: 'linacre.site', label: 'linacre.site', note: '🌟 Catch-All Routing' },
                   { domain: 'proton.me', label: 'Proton Mail', note: 'Encrypted, No Phone' },
                   { domain: 'tuta.io', label: 'Tuta', note: 'Zero-Phone Setup' },
                   { domain: 'duck.com', label: 'DuckDuckGo', note: 'Private Forwarding' }
@@ -246,7 +247,7 @@ export const AccountProvisioningWalkthrough: React.FC<AccountProvisioningWalkthr
                     key={item.domain}
                     type="button"
                     onClick={() => {
-                      const prefix = emailInput.split('@')[0] || `100+top_paid-${existingAccountsCount + 1}`;
+                      const prefix = emailInput.split('@')[0] || `gamer-${existingAccountsCount + 1}`;
                       setEmailInput(`${prefix}@${item.domain}`);
                       setSelectedDomain(item.domain as any);
                     }}

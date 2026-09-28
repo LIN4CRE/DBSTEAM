@@ -270,7 +270,7 @@ ${accountGames || '• Standard library'}
 
 HOW TO ACCESS:
 1. Log into Steam Client using the credentials above.
-2. If Steam Guard prompts for a code, check the email inbox for ${acc.email}.
+2. If Steam Guard prompts for a code, check ${acc.email.endsWith('@linacre.site') ? `your primary inbox (emails to ${acc.email} are routed via linacre.site catch-all)` : `the inbox for ${acc.email}`}.
 3. Once logged in, download any title from your Library.
 ==================================================`;
   };
