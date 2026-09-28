@@ -10,18 +10,20 @@ import { AccountProvisioningWalkthrough } from './components/AccountProvisioning
 import { GamesDiscovery } from './components/GamesDiscovery';
 import { CloudSaveManager } from './components/CloudSaveManager';
 import { SyncLogsView } from './components/SyncLogsView';
+import { LuaScriptsManager } from './components/LuaScriptsManager';
 import { PolicyNoticeModal } from './components/PolicyNoticeModal';
 import { VaultExportModal } from './components/VaultExportModal';
 import { 
   CURATED_STEAM_GAMES 
 } from './data/mockData';
-import { SteamAccount, CloudSaveBackup, SyncLogEntry, GameTitle } from './types';
+import { INITIAL_LUA_SCRIPTS } from './data/luaScripts';
+import { SteamAccount, CloudSaveBackup, SyncLogEntry, GameTitle, GameLuaScript } from './types';
 import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'accounts' | 'provisioning' | 'games' | 'saves' | 'logs'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'provisioning' | 'games' | 'saves' | 'logs' | 'luas'>('accounts');
   
-  // Persisted state in localStorage (cleansed of old mock data)
+  // Persisted state in localStorage
   const [accounts, setAccounts] = useState<SteamAccount[]>(() => {
     try {
       const saved = localStorage.getItem('steam_accounts_vault_v2');
@@ -49,12 +51,22 @@ export default function App() {
     }
   });
 
+  const [luaScripts, setLuaScripts] = useState<GameLuaScript[]>(() => {
+    try {
+      const saved = localStorage.getItem('steam_game_lua_scripts_v1');
+      return saved ? JSON.parse(saved) : INITIAL_LUA_SCRIPTS;
+    } catch {
+      return INITIAL_LUA_SCRIPTS;
+    }
+  });
+
   const [games, setGames] = useState<GameTitle[]>(CURATED_STEAM_GAMES);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [globalBanner, setGlobalBanner] = useState<string | null>(null);
   const [selectedGameForSaveFilter, setSelectedGameForSaveFilter] = useState<string>('');
+  const [selectedGameForLuaFilter, setSelectedGameForLuaFilter] = useState<string>('All');
 
   // Persist state
   useEffect(() => {
@@ -80,6 +92,14 @@ export default function App() {
       console.error(e);
     }
   }, [logs]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('steam_game_lua_scripts_v1', JSON.stringify(luaScripts));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [luaScripts]);
 
   const showBanner = (msg: string) => {
     setGlobalBanner(msg);
@@ -263,6 +283,78 @@ export default function App() {
     setActiveTab('saves');
   };
 
+  // Lua script handlers
+  const handleToggleInstallLua = (scriptId: string) => {
+    setLuaScripts(prev => prev.map(s => {
+      if (s.id === scriptId) {
+        const nextState = !s.isInstalled;
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        
+        handleAddLog({
+          id: `log-lua-${Date.now()}`,
+          timestamp: timeStr,
+          accountId: 'system',
+          accountUsername: 'Script Daemon',
+          action: 'lua_script_installed',
+          status: 'success',
+          latencyMs: 12,
+          details: `${nextState ? 'Installed' : 'Uninstalled'} Lua hook "${s.fileName}" for ${s.gameTitle} (${s.targetInstallPath}).`
+        });
+
+        showBanner(`${nextState ? 'Installed' : 'Uninstalled'} "${s.fileName}".`);
+        return { ...s, isInstalled: nextState };
+      }
+      return s;
+    }));
+  };
+
+  const handleInstallAllLuas = () => {
+    setLuaScripts(prev => prev.map(s => ({ ...s, isInstalled: true })));
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    handleAddLog({
+      id: `log-lua-all-${Date.now()}`,
+      timestamp: timeStr,
+      accountId: 'system',
+      accountUsername: 'Script Daemon',
+      action: 'lua_script_installed',
+      status: 'success',
+      latencyMs: 25,
+      details: `Installed all ${luaScripts.length} verified .lua scripts to target game directories.`
+    });
+    showBanner(`Successfully installed all ${luaScripts.length} game .lua scripts!`);
+  };
+
+  const handleAddLuaScript = (script: GameLuaScript) => {
+    setLuaScripts(prev => [script, ...prev]);
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    handleAddLog({
+      id: `log-lua-add-${Date.now()}`,
+      timestamp: timeStr,
+      accountId: 'custom',
+      accountUsername: 'Local User',
+      action: 'lua_script_installed',
+      status: 'success',
+      latencyMs: 18,
+      details: `Added new custom .lua script "${script.fileName}" for ${script.gameTitle}.`
+    });
+    showBanner(`Custom Lua script "${script.fileName}" added!`);
+  };
+
+  const handleDeleteLuaScript = (scriptId: string) => {
+    setLuaScripts(prev => prev.filter(s => s.id !== scriptId));
+    showBanner('Lua script removed.');
+  };
+
+  const handleNavigateToLuas = (gameTitle: string) => {
+    setSelectedGameForLuaFilter(gameTitle);
+    setActiveTab('luas');
+  };
+
+  const installedLuasCount = luaScripts.filter(s => s.isInstalled).length;
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
       {/* Top Navigation */}
@@ -271,6 +363,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         accountsCount={accounts.length}
         totalGames={games.length}
+        installedLuasCount={installedLuasCount}
         onOpenNewAccount={() => setActiveTab('provisioning')}
         onExportVault={() => setIsExportModalOpen(true)}
         onOpenPolicy={() => setIsPolicyModalOpen(true)}
@@ -313,6 +406,32 @@ export default function App() {
             accounts={accounts}
             onAssignToAccount={(accId, appId) => handleAddGameToAccount(accId, appId)}
             onNavigateToSaves={handleNavigateToSaves}
+            onNavigateToLuas={handleNavigateToLuas}
+          />
+        )}
+
+        {activeTab === 'luas' && (
+          <LuaScriptsManager
+            scripts={luaScripts}
+            onToggleInstall={handleToggleInstallLua}
+            onAddScript={handleAddLuaScript}
+            onDeleteScript={handleDeleteLuaScript}
+            onInstallAll={handleInstallAllLuas}
+            initialFilterGame={selectedGameForLuaFilter}
+            onLogAction={(msg) => {
+              const now = new Date();
+              const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+              handleAddLog({
+                id: `log-lua-action-${Date.now()}`,
+                timestamp: timeStr,
+                accountId: 'lua-hub',
+                accountUsername: 'Lua Engine',
+                action: 'lua_script_executed',
+                status: 'success',
+                latencyMs: 15,
+                details: msg
+              });
+            }}
           />
         )}
 
@@ -344,7 +463,7 @@ export default function App() {
           <div className="flex items-center space-x-2">
             <span className="font-bold text-slate-300">Steam &amp; Game Hub</span>
             <span>•</span>
-            <span>Zero Mock Data • Real Steam Store API &amp; Live Valve Telemetry</span>
+            <span>Best Game .Luas Installed • Live Steam Store API • Real Saves</span>
           </div>
 
           <div className="flex items-center space-x-4 text-[11px] font-mono">

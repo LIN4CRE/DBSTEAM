@@ -65,8 +65,25 @@ export interface SyncLogEntry {
   timestamp: string;
   accountId: string;
   accountUsername: string;
-  action: 'library_sync' | 'credentials_check' | 'cloud_save_sync' | 'achievement_refresh' | 'status_ping' | 'profile_verified';
+  action: 'library_sync' | 'credentials_check' | 'cloud_save_sync' | 'achievement_refresh' | 'status_ping' | 'profile_verified' | 'lua_script_installed' | 'lua_script_executed';
   status: 'success' | 'warning' | 'error';
   latencyMs: number;
   details: string;
+}
+
+export interface GameLuaScript {
+  id: string;
+  name: string;
+  fileName: string;
+  appId: number;
+  gameTitle: string;
+  category: 'Performance & Optimization' | 'Save Sync Hook' | 'Script Extender & Mods' | 'HUD & Telemetry' | 'Steamworks API' | 'Depot Manifest';
+  version: string;
+  author: string;
+  description: string;
+  code: string;
+  targetInstallPath: string;
+  isInstalled: boolean;
+  fileSizeBytes: number;
+  updatedAt: string;
 }

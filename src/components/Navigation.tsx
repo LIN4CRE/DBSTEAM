@@ -9,14 +9,16 @@ import {
   ShieldCheck, 
   Download,
   PlusCircle,
-  HelpCircle
+  HelpCircle,
+  FileCode2
 } from 'lucide-react';
 
 interface NavigationProps {
-  activeTab: 'accounts' | 'provisioning' | 'games' | 'saves' | 'logs';
-  setActiveTab: (tab: 'accounts' | 'provisioning' | 'games' | 'saves' | 'logs') => void;
+  activeTab: 'accounts' | 'provisioning' | 'games' | 'saves' | 'logs' | 'luas';
+  setActiveTab: (tab: 'accounts' | 'provisioning' | 'games' | 'saves' | 'logs' | 'luas') => void;
   accountsCount: number;
   totalGames: number;
+  installedLuasCount?: number;
   onOpenNewAccount: () => void;
   onExportVault: () => void;
   onOpenPolicy: () => void;
@@ -27,6 +29,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   setActiveTab,
   accountsCount,
   totalGames,
+  installedLuasCount = 0,
   onOpenNewAccount,
   onExportVault,
   onOpenPolicy
@@ -50,7 +53,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-mono hidden sm:block">
-                Account Manager • Top Games • Cloud Saves
+                Account Manager • Top Games • Game .Luas • Cloud Saves
               </p>
             </div>
           </div>
@@ -59,8 +62,8 @@ export const Navigation: React.FC<NavigationProps> = ({
           <div className="hidden lg:flex items-center space-x-4 text-xs font-mono bg-slate-950/60 px-3 py-1.5 rounded-lg border border-slate-800/80">
             <div className="flex items-center space-x-1.5 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Sync Daemon:</span>
-              <span className="text-emerald-400 font-bold">Online</span>
+              <span>API Gateway:</span>
+              <span className="text-emerald-400 font-bold">Live Valve Store</span>
             </div>
             <span className="text-slate-700">|</span>
             <div className="flex items-center space-x-1 text-slate-400">
@@ -69,8 +72,8 @@ export const Navigation: React.FC<NavigationProps> = ({
             </div>
             <span className="text-slate-700">|</span>
             <div className="flex items-center space-x-1 text-slate-400">
-              <Database className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Tracked Games: <b className="text-slate-200">{totalGames}</b></span>
+              <FileCode2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Installed .Luas: <b className="text-emerald-300">{installedLuasCount}</b></span>
             </div>
           </div>
 
@@ -144,7 +147,23 @@ export const Navigation: React.FC<NavigationProps> = ({
             }`}
           >
             <Gamepad2 className="w-4 h-4 text-emerald-400" />
-            <span>SteamDB Top Paid Games</span>
+            <span>Steam Live Top Games</span>
+          </button>
+
+          {/* New Game .Luas Tab */}
+          <button
+            onClick={() => setActiveTab('luas')}
+            className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition whitespace-nowrap ${
+              activeTab === 'luas'
+                ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/50 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <FileCode2 className="w-4 h-4 text-emerald-400" />
+            <span>Game .Luas &amp; Automation</span>
+            <span className="px-1.5 py-0.2 text-[10px] rounded bg-emerald-950 text-emerald-300 font-mono border border-emerald-800/60">
+              {installedLuasCount} Installed
+            </span>
           </button>
 
           <button

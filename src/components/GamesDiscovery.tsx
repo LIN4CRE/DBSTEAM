@@ -8,10 +8,11 @@ import {
   Check, 
   Plus, 
   Zap, 
-  RefreshCw,
-  Users,
-  Store,
-  Tag
+  RefreshCw, 
+  Users, 
+  Store, 
+  Tag,
+  FileCode2
 } from 'lucide-react';
 import { GameTitle, SteamAccount } from '../types';
 
@@ -20,6 +21,7 @@ interface GamesDiscoveryProps {
   accounts: SteamAccount[];
   onAssignToAccount: (accountId: string, appId: number) => void;
   onNavigateToSaves: (gameTitle: string) => void;
+  onNavigateToLuas?: (gameTitle: string) => void;
   onRefreshLiveGames?: () => void;
 }
 
@@ -27,7 +29,8 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
   games,
   accounts,
   onAssignToAccount,
-  onNavigateToSaves
+  onNavigateToSaves,
+  onNavigateToLuas
 }) => {
   const [liveGames, setLiveGames] = useState<GameTitle[]>(games);
   const [searchQuery, setSearchQuery] = useState('');
@@ -360,23 +363,33 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
 
                 {/* Footer Actions */}
                 <div className="p-4 pt-0 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleTriggerInstall(game.appId, game.title)}
-                      className="py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow transition"
+                      className="py-2 px-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg text-[11px] flex items-center justify-center gap-1 shadow transition truncate"
                       title="Direct Steam client install command: steam://install/<appId>"
                     >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Auto-Install</span>
+                      <Download className="w-3 h-3 shrink-0" />
+                      <span className="truncate">Install</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => onNavigateToSaves(game.title)}
-                      className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 border border-slate-700 transition"
+                      className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 border border-slate-700 transition truncate"
                     >
-                      <span>Cloud Saves</span>
+                      <span className="truncate">Saves</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToLuas && onNavigateToLuas(game.title)}
+                      className="py-2 px-2 bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 border border-emerald-800/60 transition truncate"
+                      title="Inspect and install .lua scripts for this title"
+                    >
+                      <FileCode2 className="w-3 h-3 shrink-0 text-emerald-400" />
+                      <span className="truncate">.Luas</span>
                     </button>
                   </div>
 
