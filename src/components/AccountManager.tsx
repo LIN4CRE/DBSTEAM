@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, 
   Key, 
@@ -12,20 +12,27 @@ import {
   Trash2, 
   Plus, 
   Filter, 
-  Search,
-  Download,
-  AlertCircle,
-  Globe,
-  RefreshCw,
-  UserCheck,
-  CheckSquare,
-  Square,
-  MinusSquare,
-  Layers,
-  ArrowRight,
-  ShieldCheck,
-  X,
-  FileSpreadsheet
+  Search, 
+  Download, 
+  AlertCircle, 
+  Globe, 
+  RefreshCw, 
+  UserCheck, 
+  CheckSquare, 
+  Square, 
+  MinusSquare, 
+  Layers, 
+  ArrowRight, 
+  ShieldCheck, 
+  X, 
+  FileSpreadsheet,
+  ArrowUpDown,
+  LayoutGrid,
+  List,
+  Edit3,
+  Tag,
+  ExternalLink,
+  ChevronDown
 } from 'lucide-react';
 import { SteamAccount, GameTitle, AccountStatus } from '../types';
 
@@ -38,6 +45,7 @@ interface AccountManagerProps {
   onSyncAccount: (accountId: string) => void;
   onAddNewAccountClick: () => void;
   onImportRealProfile: (account: SteamAccount) => void;
+  onUpdateAccount?: (account: SteamAccount) => void;
   // Bulk actions handlers
   onBulkSync?: (accountIds: string[]) => Promise<void> | void;
   onBulkAssignGames?: (accountIds: string[], appIds: number[]) => void;
@@ -54,6 +62,7 @@ export const AccountManager: React.FC<AccountManagerProps> = ({
   onSyncAccount,
   onAddNewAccountClick,
   onImportRealProfile,
+  onUpdateAccount,
   onBulkSync,
   onBulkAssignGames,
   onBulkDelete,
@@ -61,6 +70,8 @@ export const AccountManager: React.FC<AccountManagerProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
+  const [sortBy, setSortBy] = useState<'recent' | 'username' | 'games_count' | 'playtime' | 'status'>('recent');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -75,6 +86,11 @@ export const AccountManager: React.FC<AccountManagerProps> = ({
   // Single Distribution / Game modal state
   const [distributionModalAccount, setDistributionModalAccount] = useState<SteamAccount | null>(null);
   const [gamePickerModalAccount, setGamePickerModalAccount] = useState<SteamAccount | null>(null);
+
+  // Edit Notes & Tags Modal
+  const [editingNotesAccount, setEditingNotesAccount] = useState<SteamAccount | null>(null);
+  const [editNotesValue, setEditNotesValue] = useState('');
+  const [editTagsValue, setEditTagsValue] = useState('');
 
   // Real Steam Profile Import Modal
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -97,14 +113,30 @@ export const AccountManager: React.FC<AccountManagerProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const filteredAccounts = accounts.filter(acc => {
-    const matchesSearch = 
-      acc.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      acc.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      acc.steamId64.includes(searchQuery);
-    const matchesStatus = statusFilter === 'all' || acc.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Filtered & Sorted Accounts
+  const filteredAccounts = useMemo(() => {
+    const list = accounts.filter(acc => {
+      const matchesSearch = 
+        acc.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        acc.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        acc.steamId64.includes(searchQuery) ||
+        (acc.tags && acc.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())));
+      const matchesStatus = statusFilter === 'all' || acc.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    // Apply Sorting
+    list.sort((a, b) => {
+      if (sortBy === 'username') return a.username.localeCompare(b.username);
+      if (sortBy === 'games_count') return b.assignedGames.length - a.assignedGames.length;
+      if (sortBy === 'playtime') return (b.totalPlaytimeHours || 0) - (a.totalPlaytimeHours || 0);
+      if (sortBy === 'status') return a.status.localeCompare(b.status);
+      // Default: recent
+      return new Date(b.createdAt || '2026-01-01').getTime() - new Date(a.createdAt || '2026-01-01').getTime();
+    });
+
+    return list;
+  }, [accounts, searchQuery, statusFilter, sortBy]);
 
   // Bulk Selection Helpers
   const isAllSelected = filteredAccounts.length > 0 && filteredAccounts.every(a => selectedAccountIds.has(a.id));
@@ -112,14 +144,12 @@ export const AccountManager: React.FC<AccountManagerProps> = ({
 
   const handleToggleSelectAll = () => {
     if (isAllSelected) {
-      // Deselect filtered
       setSelectedAccountIds(prev => {
         const next = new Set(prev);
         filteredAccounts.forEach(a => next.delete(a.id));
         return next;
       });
     } else {
-      // Select all filtered
       setSelectedAccountIds(prev => {
         const next = new Set(prev);
         filteredAccounts.forEach(a => next.add(a.id));
@@ -198,6 +228,32 @@ export const AccountManager: React.FC<AccountManagerProps> = ({
     }
   };
 
+  // Notes & Tags Editor
+  const handleOpenEditNotes = (acc: SteamAccount) => {
+    setEditingNotesAccount(acc);
+    setEditNotesValue(acc.notes || '');
+    setEditTagsValue((acc.tags || []).join(', '));
+  };
+
+  const handleSaveEditedNotes = () => {
+    if (!editingNotesAccount) return;
+    const parsedTags = editTagsValue
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    const updated: SteamAccount = {
+      ...editingNotesAccount,
+      notes: editNotesValue.trim(),
+      tags: parsedTags
+    };
+
+    if (onUpdateAccount) {
+      onUpdateAccount(updated);
+    }
+    setEditingNotesAccount(null);
+  };
+
   const getHandoffText = (acc: SteamAccount) => {
     const accountGames = games.filter(g => acc.assignedGames.includes(g.appId)).map(g => `• ${g.title}`).join('\n');
     return `🎮 STEAM ACCOUNT GIVEAWAY HANDOFF PACKAGE
@@ -219,7 +275,6 @@ HOW TO ACCESS:
 ==================================================`;
   };
 
-  // Generate combined bulk export text
   const getBulkExportHandoffText = () => {
     const selectedAccounts = accounts.filter(a => selectedAccountIds.has(a.id));
     return selectedAccounts.map(acc => getHandoffText(acc)).join('\n\n' + '='.repeat(50) + '\n\n');
@@ -299,7 +354,7 @@ HOW TO ACCESS:
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Overview Cards - Enhanced Responsive Grid */}
+      {/* Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 flex items-center justify-between shadow-lg">
           <div>
@@ -364,10 +419,10 @@ HOW TO ACCESS:
         </div>
       </div>
 
-      {/* Control bar: search, filters, Select All & actions */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between shadow-md">
-        {/* Left: Search & Filter */}
-        <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-2 sm:gap-3">
+      {/* Control bar: search, filters, sorting, view mode & actions */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 flex flex-col xl:flex-row gap-3 items-stretch xl:items-center justify-between shadow-md">
+        {/* Left: Search, Select All & Filters */}
+        <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-2 sm:gap-3 flex-wrap">
           {/* Select All Checkbox Button */}
           {accounts.length > 0 && (
             <button
@@ -398,13 +453,13 @@ HOW TO ACCESS:
           )}
 
           {/* Search Bar */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search username, email, or SteamID64..."
+              placeholder="Search username, email, SteamID, or tags..."
               className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
             />
           </div>
@@ -415,7 +470,7 @@ HOW TO ACCESS:
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-2.5 py-2 text-xs focus:outline-none w-full sm:w-auto"
+              className="bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-2.5 py-2 text-xs focus:outline-none w-full sm:w-auto font-medium"
             >
               <option value="all">All Statuses</option>
               <option value="ready_for_distribution">Ready for Handoff</option>
@@ -424,32 +479,73 @@ HOW TO ACCESS:
               <option value="restricted">Restricted</option>
             </select>
           </div>
+
+          {/* Sort By Dropdown (QoL) */}
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <ArrowUpDown className="w-3.5 h-3.5 text-cyan-400" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-2.5 py-2 text-xs focus:outline-none w-full sm:w-auto font-medium"
+            >
+              <option value="recent">Sort: Newest Added</option>
+              <option value="username">Sort: Username (A-Z)</option>
+              <option value="playtime">Sort: Most Playtime</option>
+              <option value="games_count">Sort: Most Games</option>
+              <option value="status">Sort: Status</option>
+            </select>
+          </div>
         </div>
 
-        {/* Right: Actions */}
+        {/* Right: View Mode Toggle & Primary Actions */}
         <div className="flex flex-wrap items-center gap-2 justify-end">
+          {/* View Mode Toggle: Cards vs Table (QoL) */}
+          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5 shrink-0">
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`p-1.5 rounded-md text-xs transition ${
+                viewMode === 'cards'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Card Grid View"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-1.5 rounded-md text-xs transition ${
+                viewMode === 'table'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Compact Table / List View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+
           <button
             onClick={() => setIsImportModalOpen(true)}
-            className="flex-1 sm:flex-initial px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700 transition"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700 transition"
           >
             <Globe className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Import Real Profile</span>
+            <span>Import Profile</span>
           </button>
 
           <button
             onClick={onAddNewAccountClick}
-            className="flex-1 sm:flex-initial px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow"
+            className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow"
           >
             <Plus className="w-4 h-4" />
-            <span>Provision Account</span>
+            <span>Provision</span>
           </button>
         </div>
       </div>
 
-      {/* Floating / Sticky Bulk Action Bar (Visible when 1+ accounts selected) */}
+      {/* Floating / Sticky Bulk Action Bar */}
       {selectedCount > 0 && (
         <div className="sticky bottom-4 z-30 bg-slate-900/95 border-2 border-indigo-500/70 rounded-2xl p-3 sm:p-4 shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3 animate-fadeIn">
-          {/* Left: Selection Counter */}
           <div className="flex items-center space-x-2">
             <span className="flex h-2.5 w-2.5 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -466,9 +562,7 @@ HOW TO ACCESS:
             </button>
           </div>
 
-          {/* Right: Bulk Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Bulk Sync */}
             <button
               onClick={handleExecuteBulkSync}
               disabled={isBulkSyncing}
@@ -476,10 +570,9 @@ HOW TO ACCESS:
               title="Probe and synchronize status of all selected accounts"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isBulkSyncing ? 'animate-spin text-cyan-400' : ''}`} />
-              <span>{isBulkSyncing ? 'Syncing Fleet...' : 'Bulk Sync'}</span>
+              <span>{isBulkSyncing ? 'Syncing...' : 'Bulk Sync'}</span>
             </button>
 
-            {/* Bulk Assign Games */}
             <button
               onClick={() => setIsBulkAssignModalOpen(true)}
               className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition"
@@ -489,7 +582,6 @@ HOW TO ACCESS:
               <span>Assign Games</span>
             </button>
 
-            {/* Bulk Export */}
             <button
               onClick={() => setIsBulkExportModalOpen(true)}
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition"
@@ -499,7 +591,6 @@ HOW TO ACCESS:
               <span>Bulk Export</span>
             </button>
 
-            {/* Mark as Distribution Ready */}
             <button
               onClick={() => handleExecuteBulkStatusChange('ready_for_distribution')}
               className="px-2.5 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
@@ -509,7 +600,6 @@ HOW TO ACCESS:
               <span className="hidden sm:inline">Set Ready</span>
             </button>
 
-            {/* Bulk Delete */}
             <button
               onClick={handleExecuteBulkDelete}
               className="p-1.5 bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-400 rounded-lg transition"
@@ -556,7 +646,195 @@ HOW TO ACCESS:
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-500 text-xs">
           No accounts matched your search "{searchQuery}".
         </div>
+      ) : viewMode === 'table' ? (
+        /* TABLE VIEW (QoL) - Dense List Layout */
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
+                <tr>
+                  <th className="p-3 w-10 text-center">
+                    <button onClick={handleToggleSelectAll} className="focus:outline-none">
+                      {isAllSelected ? (
+                        <CheckSquare className="w-4 h-4 text-indigo-400" />
+                      ) : isPartiallySelected ? (
+                        <MinusSquare className="w-4 h-4 text-indigo-400" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-600" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="p-3">User &amp; Profile</th>
+                  <th className="p-3">Email</th>
+                  <th className="p-3">SteamID64</th>
+                  <th className="p-3">Security &amp; VAC</th>
+                  <th className="p-3">Playtime</th>
+                  <th className="p-3">Games</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                {filteredAccounts.map(account => {
+                  const isSelected = selectedAccountIds.has(account.id);
+                  const isPasswordVisible = revealedPasswords[account.id] || false;
+
+                  return (
+                    <tr
+                      key={account.id}
+                      className={`hover:bg-slate-800/40 transition ${
+                        isSelected ? 'bg-indigo-950/20' : ''
+                      }`}
+                    >
+                      <td className="p-3 text-center">
+                        <button
+                          onClick={(e) => handleToggleSelectAccount(account.id, e)}
+                          className={`w-5 h-5 rounded flex items-center justify-center border transition ${
+                            isSelected
+                              ? 'bg-indigo-600 border-indigo-500 text-white'
+                              : 'bg-slate-950 border-slate-700 text-transparent hover:border-slate-500'
+                          }`}
+                        >
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </button>
+                      </td>
+
+                      <td className="p-3">
+                        <div className="flex items-center space-x-2.5">
+                          {account.avatarUrl ? (
+                            <img
+                              src={account.avatarUrl}
+                              alt={account.username}
+                              className="w-7 h-7 rounded-lg border border-slate-700 object-cover shrink-0"
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center font-bold text-white text-xs shrink-0">
+                              {account.username.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-white font-sans text-xs flex items-center gap-1.5">
+                              <span className="truncate">{account.username}</span>
+                              {account.isRealProfile && (
+                                <span className="px-1 text-[9px] rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
+                                  Verified
+                                </span>
+                              )}
+                            </div>
+                            {account.tags && account.tags.length > 0 && (
+                              <div className="text-[9px] text-slate-400 truncate max-w-[140px]">
+                                {account.tags.join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="p-3 text-slate-300">
+                        <div className="flex items-center gap-1 truncate max-w-[150px]">
+                          <span className="truncate">{account.email}</span>
+                          <button
+                            onClick={() => handleCopy(account.email, `tbl-email-${account.id}`)}
+                            className="text-slate-500 hover:text-cyan-400 shrink-0"
+                          >
+                            {copiedId === `tbl-email-${account.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="p-3 text-slate-300">
+                        <div className="flex items-center gap-1">
+                          <span>{account.steamId64}</span>
+                          <button
+                            onClick={() => handleCopy(account.steamId64, `tbl-sid-${account.id}`)}
+                            className="text-slate-500 hover:text-cyan-400"
+                          >
+                            {copiedId === `tbl-sid-${account.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="p-3">
+                        <span className="text-emerald-400 flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3" />
+                          <span>{account.vacStatus} • {account.steamGuard}</span>
+                        </span>
+                      </td>
+
+                      <td className="p-3 text-slate-200">
+                        {account.totalPlaytimeHours || 0} hrs
+                      </td>
+
+                      <td className="p-3">
+                        <button
+                          onClick={() => setGamePickerModalAccount(account)}
+                          className="text-cyan-400 hover:underline flex items-center gap-1"
+                        >
+                          <Gamepad2 className="w-3 h-3" />
+                          <span>{account.assignedGames.length} titles</span>
+                        </button>
+                      </td>
+
+                      <td className="p-3">
+                        {account.status === 'ready_for_distribution' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+                            Ready
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300">
+                            {account.status.replace('_', ' ')}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => setDistributionModalAccount(account)}
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg"
+                            title="Client Handoff Card"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenEditNotes(account)}
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
+                            title="Edit Notes & Tags"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => onSyncAccount(account.id)}
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
+                            title="Sync Status"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Delete ${account.username} from vault?`)) {
+                                onDeleteAccount(account.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* CARD GRID VIEW */
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredAccounts.map(account => {
             const isSelected = selectedAccountIds.has(account.id);
@@ -735,6 +1013,39 @@ HOW TO ACCESS:
                       )}
                     </div>
                   </div>
+
+                  {/* Notes & Tags (QoL) */}
+                  <div className="bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/80 mb-3 text-[11px]">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-slate-400 font-bold flex items-center gap-1">
+                        <Tag className="w-3 h-3 text-indigo-400" />
+                        <span>Notes &amp; Tags:</span>
+                      </span>
+                      <button
+                        onClick={() => handleOpenEditNotes(account)}
+                        className="text-cyan-400 hover:underline text-[10px]"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    {account.notes ? (
+                      <p className="text-slate-300 italic mb-1.5">{account.notes}</p>
+                    ) : (
+                      <p className="text-slate-500 italic mb-1.5">No custom notes yet</p>
+                    )}
+                    {account.tags && account.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {account.tags.map(t => (
+                          <span
+                            key={t}
+                            className="px-1.5 py-0.2 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800/60 font-mono"
+                          >
+                            #{t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Footer Action Buttons */}
@@ -756,21 +1067,119 @@ HOW TO ACCESS:
                     </button>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      if (window.confirm(`Delete account ${account.username} from local vault?`)) {
-                        onDeleteAccount(account.id);
-                      }
-                    }}
-                    className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition"
-                    title="Remove from Vault"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditNotes(account)}
+                      className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                      title="Edit Notes & Tags"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Delete account ${account.username} from local vault?`)) {
+                          onDeleteAccount(account.id);
+                        }
+                      }}
+                      className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition"
+                      title="Remove from Vault"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal: Edit Notes & Tags (QoL) */}
+      {editingNotesAccount && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-cyan-400" />
+                <h3 className="text-base font-bold text-white">
+                  Edit Notes &amp; Tags for {editingNotesAccount.username}
+                </h3>
+              </div>
+              <button
+                onClick={() => setEditingNotesAccount(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Account Notes / Description:
+                </label>
+                <textarea
+                  value={editNotesValue}
+                  onChange={(e) => setEditNotesValue(e.target.value)}
+                  placeholder="e.g. Tournament account with Call of Duty franchises..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:ring-1 focus:ring-cyan-500 h-24 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Tags (Comma separated):
+                </label>
+                <input
+                  type="text"
+                  value={editTagsValue}
+                  onChange={(e) => setEditTagsValue(e.target.value)}
+                  placeholder="e.g. Main, FPS Pro, Tournament Ready, Giveaway"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+              </div>
+
+              {/* Quick Tag Suggestions */}
+              <div>
+                <span className="text-[11px] text-slate-400 block mb-1.5">Quick Tag Presets:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Main Account', 'Giveaway Handoff', 'FPS Pro', 'Racing Sim', 'JRPG Master', 'VAC Clean'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        const current = editTagsValue ? editTagsValue.split(',').map(s => s.trim()) : [];
+                        if (!current.includes(tag)) {
+                          setEditTagsValue([...current, tag].join(', '));
+                        }
+                      }}
+                      className="px-2 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                    >
+                      +{tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditingNotesAccount(null)}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditedNotes}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold shadow"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -876,7 +1285,7 @@ HOW TO ACCESS:
                   type="button"
                   onClick={handleExecuteBulkAssignGames}
                   disabled={bulkSelectedGameIds.size === 0}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow"
                 >
                   <Check className="w-4 h-4" />
                   <span>Assign to {selectedCount} Accounts</span>

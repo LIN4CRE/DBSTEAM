@@ -17,7 +17,12 @@ import {
   Bot,
   Flame,
   ArrowRight,
-  Filter
+  Filter,
+  Play,
+  ArrowUpDown,
+  DollarSign,
+  Star,
+  Layers
 } from 'lucide-react';
 import { GameTitle, SteamAccount } from '../types';
 
@@ -47,6 +52,8 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
   const [playerCounts, setPlayerCounts] = useState<Record<number, number>>({});
   const [installNotification, setInstallNotification] = useState<string | null>(null);
   const [selectedAccountForAssign, setSelectedAccountForAssign] = useState<string>(accounts[0]?.id || '');
+  const [sortGamesBy, setSortGamesBy] = useState<'trending' | 'price_low' | 'price_high' | 'alpha' | 'discount'>('trending');
+  const [priceTier, setPriceTier] = useState<'all' | 'free' | 'under20' | 'under50' | 'aaa'>('all');
 
   // Smart AI Search System states
   const [aiSearchPrompt, setAiSearchPrompt] = useState('');
@@ -54,9 +61,59 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
   const [aiSearchResults, setAiSearchResults] = useState<any[] | null>(null);
   const [aiSearchNotice, setAiSearchNotice] = useState<string | null>(null);
 
+  // Favorites (QoL)
+  const [favoriteAppIds, setFavoriteAppIds] = useState<Set<number>>(() => {
+    try {
+      const saved = localStorage.getItem('steam_favorite_games_v1');
+      return saved ? new Set<number>(JSON.parse(saved)) : new Set<number>();
+    } catch {
+      return new Set<number>();
+    }
+  });
+
+  const toggleFavorite = (appId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFavoriteAppIds(prev => {
+      const next = new Set(prev);
+      if (next.has(appId)) {
+        next.delete(appId);
+      } else {
+        next.add(appId);
+      }
+      try {
+        localStorage.setItem('steam_favorite_games_v1', JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleDeployToFleet = (appId: number, title: string) => {
+    if (accounts.length === 0) return;
+    let addedCount = 0;
+    accounts.forEach(acc => {
+      if (!acc.assignedGames.includes(appId)) {
+        onAssignToAccount(acc.id, appId);
+        addedCount++;
+      }
+    });
+    setInstallNotification(`Fleet Push: Attached "${title}" to ${addedCount} account(s) in your fleet.`);
+    setTimeout(() => setInstallNotification(null), 4000);
+  };
+
+  const handleLaunchSteamGame = (appId: number, title: string) => {
+    const link = document.createElement('a');
+    link.href = `steam://run/${appId}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setInstallNotification(`Launching "${title}" via native Steam client protocol (steam://run/${appId})...`);
+    setTimeout(() => setInstallNotification(null), 4000);
+  };
+
   // Franchise categories
   const franchises = [
     { id: 'All', label: `All Paid Games (${currentGames.length})` },
+    { id: 'Favorites', label: `★ Starred (${favoriteAppIds.size})` },
     { id: 'Call of Duty', label: 'Call of Duty' },
     { id: 'Need for Speed', label: 'Need for Speed' },
     { id: 'Colin McRae', label: 'Colin McRae / WRC' },
@@ -208,7 +265,9 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
       game.appId.toString().includes(searchQuery);
 
     let matchesFranchise = true;
-    if (selectedFranchise === 'Call of Duty') {
+    if (selectedFranchise === 'Favorites') {
+      matchesFranchise = favoriteAppIds.has(game.appId);
+    } else if (selectedFranchise === 'Call of Duty') {
       matchesFranchise = game.title.toLowerCase().includes('call of duty');
     } else if (selectedFranchise === 'Need for Speed') {
       matchesFranchise = game.title.toLowerCase().includes('need for speed');
@@ -238,10 +297,18 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
       matchesFranchise = game.genre.includes('Racing') || game.genre.includes('Simulation') || game.title.includes('Forza') || game.title.includes('Assetto');
     }
 
-    return matchesSearch && matchesFranchise;
+    // Apply Price Filter
+    let matchesPrice = true;
+    if (priceTier === 'free') matchesPrice = game.currentPrice === 0;
+    else if (priceTier === 'under20') matchesPrice = game.currentPrice > 0 && game.currentPrice <= 20;
+    else if (priceTier === 'under50') matchesPrice = game.currentPrice > 20 && game.currentPrice <= 50;
+    else if (priceTier === 'aaa') matchesPrice = game.currentPrice > 50;
+
+    return matchesSearch && matchesFranchise && matchesPrice;
   });
 
-  const displayedGames = liveSearchResults
+  // Base list
+  const baseGames = liveSearchResults
     ? liveSearchResults.map(item => ({
         appId: item.appId,
         title: item.title,
@@ -255,6 +322,16 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
         description: 'Verified live Steam Store title'
       }))
     : filteredGames;
+
+  // Apply Sorting (QoL)
+  const displayedGames = [...baseGames].sort((a, b) => {
+    if (sortGamesBy === 'price_low') return a.currentPrice - b.currentPrice;
+    if (sortGamesBy === 'price_high') return b.currentPrice - a.currentPrice;
+    if (sortGamesBy === 'alpha') return a.title.localeCompare(b.title);
+    if (sortGamesBy === 'discount') return (b.discountPercent || 0) - (a.discountPercent || 0);
+    // default: trending / library order
+    return 0;
+  });
 
   return (
     <div className="space-y-6">
@@ -506,6 +583,45 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
             </button>
           ))}
         </div>
+
+        {/* Sub-filters: Sort & Price Tier (QoL) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-xs">
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1.5 text-slate-400">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Price Filter:</span>
+            </div>
+            <select
+              value={priceTier}
+              onChange={(e) => setPriceTier(e.target.value as any)}
+              className="bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-2.5 py-1 text-xs focus:outline-none font-medium"
+            >
+              <option value="all">All Prices</option>
+              <option value="free">Free to Play ($0)</option>
+              <option value="under20">Budget (Under $20)</option>
+              <option value="under50">Mid-Tier ($20 - $50)</option>
+              <option value="aaa">AAA Blockbuster ($50+)</option>
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1.5 text-slate-400">
+              <ArrowUpDown className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Sort by:</span>
+            </div>
+            <select
+              value={sortGamesBy}
+              onChange={(e) => setSortGamesBy(e.target.value as any)}
+              className="bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-2.5 py-1 text-xs focus:outline-none font-medium"
+            >
+              <option value="trending">Recommended / Trending</option>
+              <option value="price_low">Price: Low to High</option>
+              <option value="price_high">Price: High to Low</option>
+              <option value="alpha">Title: A to Z</option>
+              <option value="discount">Highest Discount %</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Games Count Banner */}
@@ -546,11 +662,23 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
 
-                    {/* AppID tag */}
+                    {/* AppID tag & Favorite Star button */}
                     <div className="absolute top-2 left-2 flex items-center gap-1.5">
                       <span className="px-2 py-0.5 rounded bg-black/80 backdrop-blur text-[10px] font-mono text-cyan-300 border border-cyan-800/50">
                         AppID: {game.appId}
                       </span>
+                      <button
+                        type="button"
+                        onClick={(e) => toggleFavorite(game.appId, e)}
+                        className={`p-1 rounded-md backdrop-blur border transition ${
+                          favoriteAppIds.has(game.appId)
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+                            : 'bg-black/70 text-slate-400 hover:text-amber-300 border-slate-700/80'
+                        }`}
+                        title={favoriteAppIds.has(game.appId) ? "Remove from Starred Favorites" : "Add to Starred Favorites"}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${favoriteAppIds.has(game.appId) ? 'fill-current' : ''}`} />
+                      </button>
                     </div>
 
                     {/* Price tag */}
@@ -632,33 +760,47 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
 
                 {/* Footer Actions */}
                 <div className="p-4 pt-0 space-y-2">
-                  <div className="grid grid-cols-3 gap-1.5">
+                  {/* Primary Actions: Install & Play/Launch (QoL) */}
+                  <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleTriggerInstall(game.appId, game.title)}
-                      className="py-2 px-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg text-[11px] flex items-center justify-center gap-1 shadow transition truncate"
-                      title="Direct Steam client install command: steam://install/<appId>"
+                      className="py-1.5 px-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1 shadow transition"
+                      title="Install via native Steam protocol: steam://install/<appId>"
                     >
-                      <Download className="w-3 h-3 shrink-0" />
-                      <span className="truncate">Install</span>
+                      <Download className="w-3.5 h-3.5 shrink-0" />
+                      <span>Install</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => onNavigateToSaves(game.title)}
-                      className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 border border-slate-700 transition truncate"
+                      onClick={() => handleLaunchSteamGame(game.appId, game.title)}
+                      className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-white rounded-lg text-xs font-bold border border-slate-700 transition flex items-center justify-center gap-1"
+                      title="Launch game directly via native Steam client: steam://run/<appId>"
                     >
-                      <span className="truncate">Saves</span>
+                      <Play className="w-3.5 h-3.5 shrink-0 fill-cyan-400 text-cyan-400" />
+                      <span>Play</span>
+                    </button>
+                  </div>
+
+                  {/* Secondary Actions: Saves & .Luas */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToSaves(game.title)}
+                      className="py-1.5 px-2 bg-slate-800/80 hover:bg-slate-700 text-sky-300 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 border border-slate-700/80 transition"
+                    >
+                      <span>Save Backups</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => onNavigateToLuas && onNavigateToLuas(game.title)}
-                      className="py-2 px-2 bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 border border-emerald-800/60 transition truncate"
+                      className="py-1.5 px-2 bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 border border-emerald-800/60 transition"
                       title="Inspect and install .lua scripts for this title"
                     >
                       <FileCode2 className="w-3 h-3 shrink-0 text-emerald-400" />
-                      <span className="truncate">.Luas</span>
+                      <span>Game .Luas</span>
                     </button>
                   </div>
 
@@ -683,6 +825,18 @@ export const GamesDiscovery: React.FC<GamesDiscoveryProps> = ({
                           <span>Attach to Selected Account</span>
                         </>
                       )}
+                    </button>
+                  )}
+
+                  {accounts.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeployToFleet(game.appId, game.title)}
+                      className="w-full py-1.5 px-3 rounded-lg text-xs font-semibold bg-slate-950 hover:bg-slate-800 text-cyan-300 hover:text-white border border-slate-800 hover:border-slate-700 transition flex items-center justify-center gap-1.5 shadow-sm"
+                      title="Push this game license to all accounts across your fleet"
+                    >
+                      <Layers className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <span>Deploy to All Fleet ({accounts.length})</span>
                     </button>
                   )}
                 </div>

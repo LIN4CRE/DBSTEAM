@@ -14,6 +14,9 @@ import { LuaScriptsManager } from './components/LuaScriptsManager';
 import { PolicyNoticeModal } from './components/PolicyNoticeModal';
 import { VaultExportModal } from './components/VaultExportModal';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { CommandPalette } from './components/CommandPalette';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { ToastContainer, ToastItem } from './components/ToastNotification';
 import { 
   CURATED_STEAM_GAMES 
 } from './data/mockData';
@@ -74,10 +77,106 @@ export default function App() {
   });
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [globalBanner, setGlobalBanner] = useState<string | null>(null);
   const [selectedGameForSaveFilter, setSelectedGameForSaveFilter] = useState<string>('');
   const [selectedGameForLuaFilter, setSelectedGameForLuaFilter] = useState<string>('All');
+
+  // Multi-toast notification helper
+  const addToast = (type: 'success' | 'info' | 'warning', message: string, actionLabel?: string, onAction?: () => void) => {
+    const newToast: ToastItem = {
+      id: `toast-${Date.now()}-${Math.random()}`,
+      type,
+      message,
+      actionLabel,
+      onAction
+    };
+    setToasts(prev => [...prev.slice(-3), newToast]);
+  };
+
+  const showBanner = (msg: string) => {
+    addToast('success', msg);
+  };
+
+  const handleDismissToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Global Keyboard Shortcuts (Ctrl+K, ?, Number tabs, etc.)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        activeEl.tagName === 'SELECT' ||
+        (activeEl as HTMLElement).isContentEditable
+      );
+
+      // Ctrl/Cmd + K: Command Palette
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+        return;
+      }
+
+      // Ctrl/Cmd + E: Export Vault
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        setIsExportModalOpen(true);
+        return;
+      }
+
+      // Ctrl/Cmd + Shift + S: Global Sync
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleTriggerGlobalSync();
+        return;
+      }
+
+      // If user is currently typing in an input field, do not trigger single-key navigation
+      if (isInput) return;
+
+      // Question mark (?): Shortcuts Modal
+      if (e.key === '?') {
+        e.preventDefault();
+        setIsShortcutsModalOpen(prev => !prev);
+        return;
+      }
+
+      // Number keys 1-7: Fast Tab Switching
+      if (e.key === '1') { setActiveTab('accounts'); return; }
+      if (e.key === '2') { setActiveTab('analytics'); return; }
+      if (e.key === '3') { setActiveTab('provisioning'); return; }
+      if (e.key === '4') { setActiveTab('games'); return; }
+      if (e.key === '5') { setActiveTab('luas'); return; }
+      if (e.key === '6') { setActiveTab('saves'); return; }
+      if (e.key === '7') { setActiveTab('logs'); return; }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [accounts]);
+
+  // Quick network latency probe for Command Palette
+  const handleProbeNetwork = async () => {
+    const start = performance.now();
+    try {
+      const res = await fetch('/api/steam/player-count/730');
+      const elapsed = Math.round(performance.now() - start);
+      addToast('info', `Valve Network Gateway: ${res.ok ? 'HTTP 200 OK' : 'HTTP Warning'} (${elapsed}ms latency).`);
+    } catch (err: any) {
+      addToast('warning', `Network probe failed: ${err.message}`);
+    }
+  };
+
+  // Inline Account Update (notes, tags, status)
+  const handleUpdateAccount = (updatedAccount: SteamAccount) => {
+    setAccounts(prev => prev.map(a => a.id === updatedAccount.id ? updatedAccount : a));
+    addToast('success', `Saved notes & tags for "${updatedAccount.username}".`);
+  };
 
   // Persist state
   useEffect(() => {
@@ -111,11 +210,6 @@ export default function App() {
       console.error(e);
     }
   }, [luaScripts]);
-
-  const showBanner = (msg: string) => {
-    setGlobalBanner(msg);
-    setTimeout(() => setGlobalBanner(null), 5000);
-  };
 
   const handleAddLog = (newLog: SyncLogEntry) => {
     setLogs(prev => [newLog, ...prev]);
@@ -589,15 +683,9 @@ export default function App() {
         onOpenNewAccount={() => setActiveTab('provisioning')}
         onExportVault={() => setIsExportModalOpen(true)}
         onOpenPolicy={() => setIsPolicyModalOpen(true)}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
       />
-
-      {/* Global Notification Banner */}
-      {globalBanner && (
-        <div className="bg-emerald-950/90 border-b border-emerald-700/60 text-emerald-200 py-2.5 px-4 text-xs font-semibold flex items-center justify-center gap-2 shadow-lg animate-fadeIn z-30">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{globalBanner}</span>
-        </div>
-      )}
 
       {/* Main View Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -611,6 +699,7 @@ export default function App() {
             onSyncAccount={handleSyncAccount}
             onAddNewAccountClick={() => setActiveTab('provisioning')}
             onImportRealProfile={handleImportRealProfile}
+            onUpdateAccount={handleUpdateAccount}
             onBulkSync={handleBulkSync}
             onBulkAssignGames={handleBulkAssignGames}
             onBulkDelete={handleBulkDelete}
@@ -727,6 +816,32 @@ export default function App() {
         onClose={() => setIsExportModalOpen(false)}
         accounts={accounts}
         saves={saves}
+      />
+
+      {/* Global Keyboard Shortcuts Cheatsheet Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+      />
+
+      {/* Global Command Palette (Ctrl+K / Cmd+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        accounts={accounts}
+        games={games}
+        luaScripts={luaScripts}
+        onNavigateTab={(tab) => setActiveTab(tab)}
+        onTriggerGlobalSync={handleTriggerGlobalSync}
+        onExportVault={() => setIsExportModalOpen(true)}
+        onSeedDemoFleet={handleSeedDemoFleet}
+        onProbeNetwork={handleProbeNetwork}
+      />
+
+      {/* Multi-Toast Notifications */}
+      <ToastContainer
+        toasts={toasts}
+        onDismiss={handleDismissToast}
       />
     </div>
   );

@@ -13,7 +13,9 @@ import {
   Menu,
   X,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  Search,
+  Keyboard
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -25,6 +27,8 @@ interface NavigationProps {
   onOpenNewAccount: () => void;
   onExportVault: () => void;
   onOpenPolicy: () => void;
+  onOpenCommandPalette?: () => void;
+  onOpenShortcuts?: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -35,7 +39,9 @@ export const Navigation: React.FC<NavigationProps> = ({
   installedLuasCount = 0,
   onOpenNewAccount,
   onExportVault,
-  onOpenPolicy
+  onOpenPolicy,
+  onOpenCommandPalette,
+  onOpenShortcuts
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -97,6 +103,31 @@ export const Navigation: React.FC<NavigationProps> = ({
 
           {/* Primary Top Action buttons */}
           <div className="flex items-center space-x-1.5 sm:space-x-2">
+            {onOpenCommandPalette && (
+              <button
+                onClick={onOpenCommandPalette}
+                className="flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 bg-slate-950/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg text-xs border border-slate-800/80 transition"
+                title="Quick Command Palette (Ctrl+K or ⌘K)"
+              >
+                <Search className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">Search &amp; Jump</span>
+                <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.2 text-[9px] font-mono rounded bg-slate-800 text-slate-400 border border-slate-700">
+                  ⌘K
+                </kbd>
+              </button>
+            )}
+
+            {onOpenShortcuts && (
+              <button
+                onClick={onOpenShortcuts}
+                title="Keyboard Shortcuts Cheatsheet (?)"
+                className="p-2 text-slate-400 hover:text-indigo-300 hover:bg-slate-800 rounded-lg transition-colors border border-transparent hover:border-slate-700 flex items-center gap-1.5 text-xs font-medium"
+              >
+                <Keyboard className="w-4 h-4 text-indigo-400" />
+                <span className="hidden xl:inline">Shortcuts</span>
+              </button>
+            )}
+
             <button
               onClick={onOpenPolicy}
               title="Architecture & Compliance Guidelines"
@@ -368,6 +399,19 @@ export const Navigation: React.FC<NavigationProps> = ({
 
             {/* Mobile Actions */}
             <div className="pt-3 border-t border-slate-800/80 flex flex-col gap-2">
+              {onOpenCommandPalette && (
+                <button
+                  onClick={() => {
+                    onOpenCommandPalette();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-xl text-xs font-semibold border border-slate-700"
+                >
+                  <Search className="w-4 h-4 text-cyan-400" />
+                  <span>Command Palette &amp; Search (⌘K)</span>
+                </button>
+              )}
+
               <button
                 onClick={() => {
                   onOpenNewAccount();
@@ -378,6 +422,19 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <PlusCircle className="w-4 h-4" />
                 <span>Provision New Account</span>
               </button>
+
+              {onOpenShortcuts && (
+                <button
+                  onClick={() => {
+                    onOpenShortcuts();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-xl text-xs font-semibold border border-slate-700"
+                >
+                  <Keyboard className="w-4 h-4 text-indigo-400" />
+                  <span>Shortcuts Cheatsheet (?)</span>
+                </button>
+              )}
 
               <button
                 onClick={() => {

@@ -156,6 +156,16 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       new Date(a.createdAt || '2026-01-01').getTime() - new Date(b.createdAt || '2026-01-01').getTime()
     );
 
+    const filteredByHorizon = sorted.filter(acc => {
+      if (timeHorizon === 'all') return true;
+      const created = new Date(acc.createdAt || '2026-01-01').getTime();
+      const now = new Date('2026-09-28').getTime();
+      const daysDiff = (now - created) / (1000 * 60 * 60 * 24);
+      if (timeHorizon === '30d') return daysDiff <= 30;
+      if (timeHorizon === '90d') return daysDiff <= 90;
+      return true;
+    });
+
     let cumulativeAcc = 0;
     let cumulativeGames = 0;
     let cumulativeValue = 0;
@@ -171,7 +181,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       accountLabel: string;
     }> = [];
 
-    sorted.forEach((acc, index) => {
+    filteredByHorizon.forEach((acc, index) => {
       cumulativeAcc += 1;
       cumulativeGames += acc.assignedGames.length;
       cumulativeHours += (acc.totalPlaytimeHours || 0);
@@ -583,7 +593,22 @@ ${accountPlaytimeData.slice(0, 5).map(a => `• ${a.fullUsername}: ${a.playtimeH
                     Cumulative accounts enrolled, assigned game licenses, and estimated vault valuation.
                   </p>
                 </div>
-                <div className="flex items-center space-x-2 text-xs font-mono">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+                  {/* Time Horizon Pills */}
+                  <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+                    {(['all', '90d', '30d'] as const).map(horizon => (
+                      <button
+                        key={horizon}
+                        onClick={() => setTimeHorizon(horizon)}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
+                          timeHorizon === horizon ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {horizon === 'all' ? 'All Time' : horizon === '90d' ? 'Last 90 Days' : 'Last 30 Days'}
+                      </button>
+                    ))}
+                  </div>
+
                   <span className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-800/50 text-cyan-300">
                     Accounts: <b className="text-white">{totalAccounts}</b>
                   </span>
