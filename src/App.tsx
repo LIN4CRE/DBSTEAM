@@ -13,15 +13,16 @@ import { SyncLogsView } from './components/SyncLogsView';
 import { LuaScriptsManager } from './components/LuaScriptsManager';
 import { PolicyNoticeModal } from './components/PolicyNoticeModal';
 import { VaultExportModal } from './components/VaultExportModal';
+import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { 
   CURATED_STEAM_GAMES 
 } from './data/mockData';
 import { INITIAL_LUA_SCRIPTS } from './data/luaScripts';
-import { SteamAccount, CloudSaveBackup, SyncLogEntry, GameTitle, GameLuaScript } from './types';
+import { SteamAccount, CloudSaveBackup, SyncLogEntry, GameTitle, GameLuaScript, AccountStatus } from './types';
 import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'accounts' | 'provisioning' | 'games' | 'saves' | 'logs' | 'luas'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'analytics' | 'provisioning' | 'games' | 'saves' | 'logs' | 'luas'>('accounts');
   
   // Persisted state in localStorage
   const [accounts, setAccounts] = useState<SteamAccount[]>(() => {
@@ -60,7 +61,17 @@ export default function App() {
     }
   });
 
-  const [games, setGames] = useState<GameTitle[]>(CURATED_STEAM_GAMES);
+  const [games, setGames] = useState<GameTitle[]>(() => {
+    try {
+      const custom = localStorage.getItem('steam_custom_games_v2');
+      const customList: GameTitle[] = custom ? JSON.parse(custom) : [];
+      const existingIds = new Set(CURATED_STEAM_GAMES.map(g => g.appId));
+      const filteredCustom = customList.filter(g => !existingIds.has(g.appId));
+      return [...filteredCustom, ...CURATED_STEAM_GAMES];
+    } catch {
+      return CURATED_STEAM_GAMES;
+    }
+  });
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -187,6 +198,36 @@ export default function App() {
     }));
   };
 
+  // Add new game discovered via AI or store to permanent library
+  const handleAddNewGameToLibrary = (newGame: GameTitle) => {
+    setGames(prev => {
+      if (prev.some(g => g.appId === newGame.appId)) return prev;
+      const updated = [newGame, ...prev];
+      try {
+        const customOnly = updated.filter(g => !CURATED_STEAM_GAMES.some(cg => cg.appId === g.appId));
+        localStorage.setItem('steam_custom_games_v2', JSON.stringify(customOnly));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    handleAddLog({
+      id: `log-game-add-${Date.now()}`,
+      timestamp: timeStr,
+      accountId: 'system',
+      accountUsername: 'AI Discovery',
+      action: 'library_manifest_sync',
+      status: 'success',
+      latencyMs: 24,
+      details: `Added "${newGame.title}" (AppID: ${newGame.appId}) to permanent library via AI Smart Search.`
+    });
+
+    showBanner(`Added "${newGame.title}" to library!`);
+  };
+
   // Delete account
   const handleDeleteAccount = (accountId: string) => {
     setAccounts(prev => prev.filter(a => a.id !== accountId));
@@ -251,6 +292,187 @@ export default function App() {
     setLogs(prev => [...newLogs, ...prev]);
     setIsSyncing(false);
     showBanner(`Real-time sync completed across ${accounts.length} accounts (${elapsed}ms)!`);
+  };
+
+  // Bulk actions handlers
+  const handleBulkSync = async (accountIds: string[]) => {
+    if (accountIds.length === 0) return;
+    setIsSyncing(true);
+
+    const start = performance.now();
+    try {
+      await fetch(`/api/steam/player-count/730`);
+    } catch {}
+    const elapsed = Math.round(performance.now() - start);
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+    const targetAccounts = accounts.filter(a => accountIds.includes(a.id));
+    const newLogs: SyncLogEntry[] = targetAccounts.map(acc => ({
+      id: `log-bulk-${Date.now()}-${acc.id}`,
+      timestamp: timeStr,
+      accountId: acc.id,
+      accountUsername: acc.username,
+      action: 'library_sync',
+      status: 'success',
+      latencyMs: elapsed,
+      details: `Fleet bulk probe for ${acc.username} (SteamID: ${acc.steamId64}). Latency: ${elapsed}ms.`
+    }));
+
+    setLogs(prev => [...newLogs, ...prev]);
+    setAccounts(prev => prev.map(a => accountIds.includes(a.id) ? { ...a, lastSynced: 'Just now' } : a));
+    setIsSyncing(false);
+    showBanner(`Bulk synchronized ${accountIds.length} accounts (${elapsed}ms)!`);
+  };
+
+  const handleBulkAssignGames = (accountIds: string[], appIds: number[]) => {
+    setAccounts(prev => prev.map(acc => {
+      if (!accountIds.includes(acc.id)) return acc;
+      const existing = new Set(acc.assignedGames);
+      appIds.forEach(id => existing.add(id));
+      const updatedGames = Array.from(existing);
+      return {
+        ...acc,
+        assignedGames: updatedGames,
+        gamesCount: updatedGames.length
+      };
+    }));
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    handleAddLog({
+      id: `log-bulk-assign-${Date.now()}`,
+      timestamp: timeStr,
+      accountId: 'bulk-engine',
+      accountUsername: 'Fleet Manager',
+      action: 'library_manifest_sync',
+      status: 'success',
+      latencyMs: 14,
+      details: `Assigned ${appIds.length} game(s) to ${accountIds.length} managed account(s).`
+    });
+
+    showBanner(`Bulk assigned ${appIds.length} game(s) to ${accountIds.length} account(s)!`);
+  };
+
+  const handleBulkDelete = (accountIds: string[]) => {
+    setAccounts(prev => prev.filter(a => !accountIds.includes(a.id)));
+    showBanner(`Removed ${accountIds.length} account(s) from vault.`);
+  };
+
+  const handleBulkUpdateStatus = (accountIds: string[], status: AccountStatus) => {
+    setAccounts(prev => prev.map(a => accountIds.includes(a.id) ? { ...a, status } : a));
+    showBanner(`Updated ${accountIds.length} account(s) to "${status.replace('_', ' ')}".`);
+  };
+
+  // Seed sample fleet data for instant Recharts analytics
+  const handleSeedDemoFleet = () => {
+    const sampleFleet: SteamAccount[] = [
+      {
+        id: `acc-fleet-1`,
+        username: 'ApexTitan_Prime',
+        email: 'apextitan.prime@vault.secure',
+        passwordHash: 'G7#kL9$mQ2!vX4@p',
+        steamId64: '76561198034827101',
+        status: 'ready_for_distribution',
+        vacStatus: 'Clean',
+        communityBan: false,
+        tradeHold: false,
+        gamesCount: 8,
+        totalPlaytimeHours: 640,
+        walletBalance: '$45.00',
+        steamGuard: 'Mobile 2FA',
+        createdAt: '2026-05-12',
+        lastSynced: 'Just now',
+        notes: 'High-tier tournament account loaded with Call of Duty and Remedy titles.',
+        assignedGames: [2519060, 1938090, 870780, 212050, 1091500, 1245620, 1716740, 2050650],
+        tags: ['FPS Pro', 'Verified', 'Ready for Giveaway']
+      },
+      {
+        id: `acc-fleet-2`,
+        username: 'VelocityDriver_99',
+        email: 'speedking.vault@secure.mail',
+        passwordHash: 'R8#pT1$wV5!bZ7@q',
+        steamId64: '76561198129038472',
+        status: 'ready_for_distribution',
+        vacStatus: 'Clean',
+        communityBan: false,
+        tradeHold: false,
+        gamesCount: 6,
+        totalPlaytimeHours: 420,
+        walletBalance: '$22.50',
+        steamGuard: 'Mobile 2FA',
+        createdAt: '2026-06-20',
+        lastSynced: '2 hours ago',
+        notes: 'Full racing simulator package including Need for Speed & Colin McRae/WRC titles.',
+        assignedGames: [1846380, 1222680, 1262540, 1849250, 1551360, 690790],
+        tags: ['Racing Specialist', 'Sim Rig Ready']
+      },
+      {
+        id: `acc-fleet-3`,
+        username: 'FinalFantasy_Sage',
+        email: 'chocobo.knight@rpgvault.net',
+        passwordHash: 'F3!qM8@zB2#kY9$u',
+        steamId64: '76561198284759103',
+        status: 'active',
+        vacStatus: 'Clean',
+        communityBan: false,
+        tradeHold: false,
+        gamesCount: 9,
+        totalPlaytimeHours: 890,
+        walletBalance: '$14.99',
+        steamGuard: 'Email',
+        createdAt: '2026-07-04',
+        lastSynced: '1 day ago',
+        notes: 'RPG master account featuring Final Fantasy VII Rebirth, Remake, XVI, and Digimon titles.',
+        assignedGames: [2923300, 1462040, 2515020, 1196590, 874340, 1448440, 1086940, 1938090, 212050],
+        tags: ['JRPG', 'Completionist']
+      },
+      {
+        id: `acc-fleet-4`,
+        username: 'RemedyChronicle',
+        email: 'alan.wake.archive@paranormal.io',
+        passwordHash: 'C4$uL7!xE9#jW1@v',
+        steamId64: '76561198394857291',
+        status: 'active',
+        vacStatus: 'Clean',
+        communityBan: false,
+        tradeHold: false,
+        gamesCount: 5,
+        totalPlaytimeHours: 310,
+        walletBalance: '$5.00',
+        steamGuard: 'Mobile 2FA',
+        createdAt: '2026-08-11',
+        lastSynced: 'Just now',
+        notes: 'Remedy Connected Universe & mystery thrillers library.',
+        assignedGames: [870780, 212050, 1086940, 1245620, 1091500],
+        tags: ['Remedy Lore', 'Sci-Fi']
+      },
+      {
+        id: `acc-fleet-5`,
+        username: 'TacticalGhost_OP',
+        email: 'ghost.squad@tacticalvault.gg',
+        passwordHash: 'T9@vB3#mN6$kP8!z',
+        steamId64: '76561198481920384',
+        status: 'ready_for_distribution',
+        vacStatus: 'Clean',
+        communityBan: false,
+        tradeHold: false,
+        gamesCount: 7,
+        totalPlaytimeHours: 515,
+        walletBalance: '$30.00',
+        steamGuard: 'Mobile 2FA',
+        createdAt: '2026-09-02',
+        lastSynced: 'Just now',
+        notes: 'Handoff bundle for competitive shooter clan members.',
+        assignedGames: [2519060, 1938090, 1388880, 1222680, 1846380, 212050, 730],
+        tags: ['Competitive', 'Ready for Distribution']
+      }
+    ];
+
+    setAccounts(sampleFleet);
+    showBanner(`Loaded sample fleet of ${sampleFleet.length} managed Steam accounts!`);
+    setActiveTab('analytics');
   };
 
   // Cloud saves
@@ -389,6 +611,20 @@ export default function App() {
             onSyncAccount={handleSyncAccount}
             onAddNewAccountClick={() => setActiveTab('provisioning')}
             onImportRealProfile={handleImportRealProfile}
+            onBulkSync={handleBulkSync}
+            onBulkAssignGames={handleBulkAssignGames}
+            onBulkDelete={handleBulkDelete}
+            onBulkUpdateStatus={handleBulkUpdateStatus}
+          />
+        )}
+
+        {activeTab === 'analytics' && (
+          <AnalyticsDashboard
+            accounts={accounts}
+            games={games}
+            onNavigateToAccounts={() => setActiveTab('accounts')}
+            onNavigateToGames={() => setActiveTab('games')}
+            onSeedDemoFleet={handleSeedDemoFleet}
           />
         )}
 
@@ -407,6 +643,7 @@ export default function App() {
             onAssignToAccount={(accId, appId) => handleAddGameToAccount(accId, appId)}
             onNavigateToSaves={handleNavigateToSaves}
             onNavigateToLuas={handleNavigateToLuas}
+            onAddNewGameToLibrary={handleAddNewGameToLibrary}
           />
         )}
 

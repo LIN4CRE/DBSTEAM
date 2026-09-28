@@ -217,7 +217,7 @@ export const LuaScriptsManager: React.FC<LuaScriptsManagerProps> = ({
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow">
           <div className="text-xs text-slate-400 font-mono">Installed Active Scripts</div>
           <div className="text-2xl font-black text-emerald-400 mt-1 flex items-baseline gap-1.5">

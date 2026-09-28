@@ -28,7 +28,7 @@ export interface GameTitle {
   appId: number;
   title: string;
   genre: string[];
-  platforms: ('Steam' | 'Epic' | 'GOG' | 'Xbox' | 'PlayStation')[];
+  platforms: ('Steam' | 'Epic' | 'GOG' | 'Xbox' | 'PlayStation' | 'Switch')[];
   originalPrice: number;
   currentPrice: number;
   discountPercent: number;
@@ -65,7 +65,7 @@ export interface SyncLogEntry {
   timestamp: string;
   accountId: string;
   accountUsername: string;
-  action: 'library_sync' | 'credentials_check' | 'cloud_save_sync' | 'achievement_refresh' | 'status_ping' | 'profile_verified' | 'lua_script_installed' | 'lua_script_executed';
+  action: 'library_sync' | 'credentials_check' | 'cloud_save_sync' | 'achievement_refresh' | 'status_ping' | 'profile_verified' | 'lua_script_installed' | 'lua_script_executed' | 'library_manifest_sync';
   status: 'success' | 'warning' | 'error';
   latencyMs: number;
   details: string;

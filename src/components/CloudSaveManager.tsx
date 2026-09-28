@@ -279,7 +279,7 @@ export const CloudSaveManager: React.FC<CloudSaveManagerProps> = ({
                     <span>•</span>
                     <span>Saved: {save.timestamp}</span>
                   </div>
-                  <div className="text-[10px] font-mono text-slate-500 mt-1 truncate max-w-xl">
+                  <div className="text-[10px] font-mono text-slate-500 mt-1 truncate max-w-[220px] sm:max-w-xl">
                     SHA-256: {save.checksum}
                   </div>
                   {save.notes && (

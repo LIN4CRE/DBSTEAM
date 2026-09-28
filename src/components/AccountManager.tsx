@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { 
   Users, 
   Key, 
-  Mail, 
-  ShieldCheck, 
   Gamepad2, 
   Clock, 
   Copy, 
@@ -15,13 +13,19 @@ import {
   Plus, 
   Filter, 
   Search,
-  ExternalLink,
-  Sparkles,
   Download,
   AlertCircle,
   Globe,
   RefreshCw,
-  UserCheck
+  UserCheck,
+  CheckSquare,
+  Square,
+  MinusSquare,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 import { SteamAccount, GameTitle, AccountStatus } from '../types';
 
@@ -34,6 +38,11 @@ interface AccountManagerProps {
   onSyncAccount: (accountId: string) => void;
   onAddNewAccountClick: () => void;
   onImportRealProfile: (account: SteamAccount) => void;
+  // Bulk actions handlers
+  onBulkSync?: (accountIds: string[]) => Promise<void> | void;
+  onBulkAssignGames?: (accountIds: string[], appIds: number[]) => void;
+  onBulkDelete?: (accountIds: string[]) => void;
+  onBulkUpdateStatus?: (accountIds: string[], status: AccountStatus) => void;
 }
 
 export const AccountManager: React.FC<AccountManagerProps> = ({
@@ -44,14 +53,26 @@ export const AccountManager: React.FC<AccountManagerProps> = ({
   onDeleteAccount,
   onSyncAccount,
   onAddNewAccountClick,
-  onImportRealProfile
+  onImportRealProfile,
+  onBulkSync,
+  onBulkAssignGames,
+  onBulkDelete,
+  onBulkUpdateStatus
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Bulk Selection State
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
+  const [isBulkSyncing, setIsBulkSyncing] = useState(false);
+  const [isBulkAssignModalOpen, setIsBulkAssignModalOpen] = useState(false);
+  const [isBulkExportModalOpen, setIsBulkExportModalOpen] = useState(false);
+  const [bulkSelectedGameIds, setBulkSelectedGameIds] = useState<Set<number>>(new Set());
+  const [bulkGameSearchQuery, setBulkGameSearchQuery] = useState('');
   
-  // Distribution modal state
+  // Single Distribution / Game modal state
   const [distributionModalAccount, setDistributionModalAccount] = useState<SteamAccount | null>(null);
   const [gamePickerModalAccount, setGamePickerModalAccount] = useState<SteamAccount | null>(null);
 
@@ -85,6 +106,98 @@ export const AccountManager: React.FC<AccountManagerProps> = ({
     return matchesSearch && matchesStatus;
   });
 
+  // Bulk Selection Helpers
+  const isAllSelected = filteredAccounts.length > 0 && filteredAccounts.every(a => selectedAccountIds.has(a.id));
+  const isPartiallySelected = filteredAccounts.some(a => selectedAccountIds.has(a.id)) && !isAllSelected;
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      // Deselect filtered
+      setSelectedAccountIds(prev => {
+        const next = new Set(prev);
+        filteredAccounts.forEach(a => next.delete(a.id));
+        return next;
+      });
+    } else {
+      // Select all filtered
+      setSelectedAccountIds(prev => {
+        const next = new Set(prev);
+        filteredAccounts.forEach(a => next.add(a.id));
+        return next;
+      });
+    }
+  };
+
+  const handleToggleSelectAccount = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedAccountIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedAccountIds(new Set());
+  };
+
+  // Bulk Actions Handlers
+  const handleExecuteBulkSync = async () => {
+    if (selectedAccountIds.size === 0) return;
+    setIsBulkSyncing(true);
+    const ids = Array.from(selectedAccountIds);
+
+    if (onBulkSync) {
+      await onBulkSync(ids);
+    } else {
+      for (const id of ids) {
+        onSyncAccount(id);
+      }
+    }
+    setIsBulkSyncing(false);
+  };
+
+  const handleExecuteBulkAssignGames = () => {
+    if (selectedAccountIds.size === 0 || bulkSelectedGameIds.size === 0) return;
+    const accountIds = Array.from(selectedAccountIds);
+    const appIds = Array.from(bulkSelectedGameIds);
+
+    if (onBulkAssignGames) {
+      onBulkAssignGames(accountIds, appIds);
+    } else {
+      accountIds.forEach(accId => {
+        appIds.forEach(appId => {
+          onAddGameToAccount(accId, appId);
+        });
+      });
+    }
+
+    setIsBulkAssignModalOpen(false);
+    setBulkSelectedGameIds(new Set());
+  };
+
+  const handleExecuteBulkDelete = () => {
+    const count = selectedAccountIds.size;
+    if (count === 0) return;
+    if (window.confirm(`Are you sure you want to permanently remove ${count} selected account(s) from your local vault?`)) {
+      const ids = Array.from(selectedAccountIds);
+      if (onBulkDelete) {
+        onBulkDelete(ids);
+      } else {
+        ids.forEach(id => onDeleteAccount(id));
+      }
+      setSelectedAccountIds(new Set());
+    }
+  };
+
+  const handleExecuteBulkStatusChange = (newStatus: AccountStatus) => {
+    const ids = Array.from(selectedAccountIds);
+    if (onBulkUpdateStatus) {
+      onBulkUpdateStatus(ids, newStatus);
+    }
+  };
+
   const getHandoffText = (acc: SteamAccount) => {
     const accountGames = games.filter(g => acc.assignedGames.includes(g.appId)).map(g => `• ${g.title}`).join('\n');
     return `🎮 STEAM ACCOUNT GIVEAWAY HANDOFF PACKAGE
@@ -106,6 +219,23 @@ HOW TO ACCESS:
 ==================================================`;
   };
 
+  // Generate combined bulk export text
+  const getBulkExportHandoffText = () => {
+    const selectedAccounts = accounts.filter(a => selectedAccountIds.has(a.id));
+    return selectedAccounts.map(acc => getHandoffText(acc)).join('\n\n' + '='.repeat(50) + '\n\n');
+  };
+
+  const handleDownloadBulkJson = () => {
+    const selectedAccounts = accounts.filter(a => selectedAccountIds.has(a.id));
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(selectedAccounts, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `steam_accounts_bulk_${selectedAccounts.length}_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
   // Real Profile Import via Steam Community
   const handleFetchRealSteamProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +245,6 @@ HOW TO ACCESS:
     setImportError(null);
 
     try {
-      // Strip full url if pasted e.g. https://steamcommunity.com/id/xxxx/ or https://steamcommunity.com/profiles/7656.../
       let cleanId = importIdentifier.trim();
       const idMatch = cleanId.match(/steamcommunity\.com\/id\/([^/?#]+)/i);
       const profileMatch = cleanId.match(/steamcommunity\.com\/profiles\/([^/?#]+)/i);
@@ -166,70 +295,127 @@ HOW TO ACCESS:
     }
   };
 
+  const selectedCount = selectedAccountIds.size;
+
   return (
-    <div className="space-y-6">
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-center justify-between shadow-lg">
+    <div className="space-y-6 pb-20">
+      {/* Overview Cards - Enhanced Responsive Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 flex items-center justify-between shadow-lg">
           <div>
-            <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">Vault Accounts</div>
-            <div className="text-3xl font-black text-white mt-1">{accounts.length}</div>
-            <div className="text-[11px] text-slate-500 mt-1">
-              {accounts.length === 0 ? 'No accounts enrolled' : `${accounts.filter(a => a.vacStatus === 'Clean').length} VAC Clean`}
+            <div className="text-[11px] sm:text-xs text-slate-400 font-semibold uppercase tracking-wider">
+              Vault Accounts
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-white mt-1">{accounts.length}</div>
+            <div className="text-[11px] text-slate-500 mt-1 font-mono">
+              {accounts.length === 0 ? 'Empty vault' : `${accounts.filter(a => a.vacStatus === 'Clean').length} VAC Clean`}
             </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-indigo-950/80 border border-indigo-700/50 flex items-center justify-center text-indigo-400">
-            <Users className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-950/80 border border-indigo-700/50 flex items-center justify-center text-indigo-400 shrink-0">
+            <Users className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-center justify-between shadow-lg">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 flex items-center justify-between shadow-lg">
           <div>
-            <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">Ready for Distribution</div>
-            <div className="text-3xl font-black text-emerald-400 mt-1">
+            <div className="text-[11px] sm:text-xs text-slate-400 font-semibold uppercase tracking-wider">
+              Ready for Handoff
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-1">
               {accounts.filter(a => a.status === 'ready_for_distribution').length}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Client handoff packages prepared</div>
+            <div className="text-[11px] text-slate-500 mt-1 font-mono">Handoff cards ready</div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-950/80 border border-emerald-700/50 flex items-center justify-center text-emerald-400">
-            <Share2 className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-950/80 border border-emerald-700/50 flex items-center justify-center text-emerald-400 shrink-0">
+            <Share2 className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-center justify-between shadow-lg">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 flex items-center justify-between shadow-lg">
           <div>
-            <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">Assigned Games</div>
-            <div className="text-3xl font-black text-cyan-400 mt-1">
+            <div className="text-[11px] sm:text-xs text-slate-400 font-semibold uppercase tracking-wider">
+              Assigned Games
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-cyan-400 mt-1">
               {accounts.reduce((sum, a) => sum + a.assignedGames.length, 0)}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Linked across account libraries</div>
+            <div className="text-[11px] text-slate-500 mt-1 font-mono">Across account libraries</div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-cyan-950/80 border border-cyan-700/50 flex items-center justify-center text-cyan-400">
-            <Gamepad2 className="w-6 h-6" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-cyan-950/80 border border-cyan-700/50 flex items-center justify-center text-cyan-400 shrink-0">
+            <Gamepad2 className="w-5 h-5 sm:w-6 sm:h-6" />
+          </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 flex items-center justify-between shadow-lg">
+          <div>
+            <div className="text-[11px] sm:text-xs text-slate-400 font-semibold uppercase tracking-wider">
+              Bulk Selected
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-purple-400 mt-1">
+              {selectedCount}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1 font-mono">
+              {selectedCount > 0 ? 'Actions active' : 'Click checkboxes to select'}
+            </div>
+          </div>
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-purple-950/80 border border-purple-700/50 flex items-center justify-center text-purple-400 shrink-0">
+            <CheckSquare className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
         </div>
       </div>
 
-      {/* Control bar: search, filters & actions */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between shadow-md">
-        <div className="flex flex-1 w-full md:w-auto items-center gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
+      {/* Control bar: search, filters, Select All & actions */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between shadow-md">
+        {/* Left: Search & Filter */}
+        <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-2 sm:gap-3">
+          {/* Select All Checkbox Button */}
+          {accounts.length > 0 && (
+            <button
+              onClick={handleToggleSelectAll}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border transition shrink-0 ${
+                isAllSelected
+                  ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300'
+                  : isPartiallySelected
+                  ? 'bg-slate-800 border-indigo-600 text-indigo-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-white'
+              }`}
+              title={isAllSelected ? 'Deselect All' : 'Select All'}
+            >
+              {isAllSelected ? (
+                <CheckSquare className="w-4 h-4 text-indigo-400" />
+              ) : isPartiallySelected ? (
+                <MinusSquare className="w-4 h-4 text-indigo-400" />
+              ) : (
+                <Square className="w-4 h-4 text-slate-500" />
+              )}
+              <span className="hidden sm:inline">
+                {isAllSelected ? 'Deselect All' : 'Select All'}
+              </span>
+              <span className="text-[10px] font-mono opacity-80">
+                ({selectedCount}/{filteredAccounts.length})
+              </span>
+            </button>
+          )}
+
+          {/* Search Bar */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by username, email, or SteamID..."
+              placeholder="Search username, email, or SteamID64..."
               className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
             />
           </div>
 
-          <div className="flex items-center space-x-1.5">
+          {/* Status Filter */}
+          <div className="flex items-center space-x-1.5 shrink-0">
             <Filter className="w-3.5 h-3.5 text-slate-400" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-2.5 py-2 text-xs focus:outline-none"
+              className="bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-2.5 py-2 text-xs focus:outline-none w-full sm:w-auto"
             >
               <option value="all">All Statuses</option>
               <option value="ready_for_distribution">Ready for Handoff</option>
@@ -240,35 +426,111 @@ HOW TO ACCESS:
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        {/* Right: Actions */}
+        <div className="flex flex-wrap items-center gap-2 justify-end">
           <button
             onClick={() => setIsImportModalOpen(true)}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700 transition"
+            className="flex-1 sm:flex-initial px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700 transition"
           >
             <Globe className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Import Real Steam Profile</span>
+            <span>Import Real Profile</span>
           </button>
 
           <button
             onClick={onAddNewAccountClick}
-            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow"
+            className="flex-1 sm:flex-initial px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow"
           >
             <Plus className="w-4 h-4" />
-            <span>Provision New Account</span>
+            <span>Provision Account</span>
           </button>
         </div>
       </div>
 
+      {/* Floating / Sticky Bulk Action Bar (Visible when 1+ accounts selected) */}
+      {selectedCount > 0 && (
+        <div className="sticky bottom-4 z-30 bg-slate-900/95 border-2 border-indigo-500/70 rounded-2xl p-3 sm:p-4 shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3 animate-fadeIn">
+          {/* Left: Selection Counter */}
+          <div className="flex items-center space-x-2">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
+            </span>
+            <span className="text-xs sm:text-sm font-bold text-white">
+              {selectedCount} {selectedCount === 1 ? 'account' : 'accounts'} selected
+            </span>
+            <button
+              onClick={handleClearSelection}
+              className="text-xs text-slate-400 hover:text-white underline ml-2"
+            >
+              Clear
+            </button>
+          </div>
+
+          {/* Right: Bulk Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Bulk Sync */}
+            <button
+              onClick={handleExecuteBulkSync}
+              disabled={isBulkSyncing}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition"
+              title="Probe and synchronize status of all selected accounts"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isBulkSyncing ? 'animate-spin text-cyan-400' : ''}`} />
+              <span>{isBulkSyncing ? 'Syncing Fleet...' : 'Bulk Sync'}</span>
+            </button>
+
+            {/* Bulk Assign Games */}
+            <button
+              onClick={() => setIsBulkAssignModalOpen(true)}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition"
+              title="Assign games to all selected accounts simultaneously"
+            >
+              <Gamepad2 className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Assign Games</span>
+            </button>
+
+            {/* Bulk Export */}
+            <button
+              onClick={() => setIsBulkExportModalOpen(true)}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition"
+              title="Export credentials for selected accounts"
+            >
+              <Download className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Bulk Export</span>
+            </button>
+
+            {/* Mark as Distribution Ready */}
+            <button
+              onClick={() => handleExecuteBulkStatusChange('ready_for_distribution')}
+              className="px-2.5 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+              title="Mark all selected accounts as ready for distribution"
+            >
+              <Share2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Set Ready</span>
+            </button>
+
+            {/* Bulk Delete */}
+            <button
+              onClick={handleExecuteBulkDelete}
+              className="p-1.5 bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-400 rounded-lg transition"
+              title="Delete all selected accounts"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Accounts List / Clean Empty State */}
       {accounts.length === 0 ? (
-        <div className="bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-12 text-center max-w-2xl mx-auto shadow-sm space-y-4">
+        <div className="bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-sm space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center mx-auto text-slate-500">
             <Users className="w-8 h-8" />
           </div>
           <div>
             <h3 className="text-lg font-bold text-white">Your Account Vault is Empty</h3>
             <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">
-              No mock or fake accounts are loaded. Add your genuine gaming accounts or provision an anonymous account using the guided setup wizard.
+              No mock accounts are loaded. Add your genuine gaming accounts or provision an anonymous account using the guided setup wizard.
             </p>
           </div>
 
@@ -297,44 +559,66 @@ HOW TO ACCESS:
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredAccounts.map(account => {
+            const isSelected = selectedAccountIds.has(account.id);
             const isPasswordVisible = revealedPasswords[account.id] || false;
             const accountGamesList = games.filter(g => account.assignedGames.includes(g.appId));
 
             return (
               <div 
                 key={account.id} 
-                className="bg-slate-900 border border-slate-800 hover:border-slate-750 rounded-xl p-5 shadow-lg transition flex flex-col justify-between"
+                className={`bg-slate-900 border rounded-xl p-4 sm:p-5 shadow-lg transition flex flex-col justify-between relative ${
+                  isSelected
+                    ? 'border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-950/15'
+                    : 'border-slate-800 hover:border-slate-700'
+                }`}
               >
                 <div>
-                  {/* Top row: username & status tag */}
+                  {/* Top row: Checkbox, username, avatar & status badge */}
                   <div className="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-3 mb-3">
                     <div className="flex items-center space-x-3">
+                      {/* Selection Checkbox */}
+                      <button
+                        onClick={(e) => handleToggleSelectAccount(account.id, e)}
+                        className={`w-6 h-6 rounded-md flex items-center justify-center border transition shrink-0 ${
+                          isSelected
+                            ? 'bg-indigo-600 border-indigo-500 text-white shadow'
+                            : 'bg-slate-950 border-slate-700 text-transparent hover:border-slate-500'
+                        }`}
+                        title={isSelected ? 'Deselect account' : 'Select account'}
+                      >
+                        <Check className="w-4 h-4 stroke-[3]" />
+                      </button>
+
+                      {/* Avatar */}
                       {account.avatarUrl ? (
                         <img
                           src={account.avatarUrl}
                           alt={account.username}
-                          className="w-10 h-10 rounded-lg border border-slate-700 object-cover"
+                          className="w-10 h-10 rounded-lg border border-slate-700 object-cover shrink-0"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center font-bold text-white text-base shadow">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-700 to-purple-800 flex items-center justify-center font-bold text-white text-base shadow shrink-0">
                           {account.username.slice(0, 2).toUpperCase()}
                         </div>
                       )}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white text-sm">{account.username}</span>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-white text-sm truncate max-w-[150px] sm:max-w-[200px]">
+                            {account.username}
+                          </span>
                           {account.isRealProfile && (
                             <span className="px-1.5 py-0.2 rounded text-[9px] bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">
                               Verified
                             </span>
                           )}
                         </div>
-                        <div className="text-xs font-mono text-slate-400 flex items-center gap-1">
-                          <span>{account.email}</span>
+                        <div className="text-xs font-mono text-slate-400 flex items-center gap-1 truncate">
+                          <span className="truncate max-w-[160px] sm:max-w-[220px]">{account.email}</span>
                           <button
                             onClick={() => handleCopy(account.email, `email-${account.id}`)}
                             title="Copy Email"
-                            className="text-slate-500 hover:text-cyan-400"
+                            className="text-slate-500 hover:text-cyan-400 shrink-0"
                           >
                             {copiedId === `email-${account.id}` ? (
                               <Check className="w-3 h-3 text-emerald-400" />
@@ -346,14 +630,15 @@ HOW TO ACCESS:
                       </div>
                     </div>
 
-                    <div>
+                    {/* Status Badge */}
+                    <div className="shrink-0">
                       {account.status === 'ready_for_distribution' ? (
-                        <span className="px-2.5 py-1 text-[11px] font-bold rounded-full bg-emerald-950 border border-emerald-700/60 text-emerald-400 inline-flex items-center gap-1">
+                        <span className="px-2.5 py-1 text-[10px] sm:text-[11px] font-bold rounded-full bg-emerald-950 border border-emerald-700/60 text-emerald-400 inline-flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                          Ready for Handoff
+                          Ready
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 text-[11px] font-semibold rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+                        <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-[11px] font-semibold rounded-full bg-slate-800 border border-slate-700 text-slate-300">
                           {account.status.replace('_', ' ')}
                         </span>
                       )}
@@ -393,7 +678,7 @@ HOW TO ACCESS:
                     <div className="flex items-center justify-between pt-1 border-t border-slate-900">
                       <span className="text-slate-500">SteamID64:</span>
                       <div className="flex items-center gap-1 text-slate-300">
-                        <span>{account.steamId64}</span>
+                        <span className="text-[11px] sm:text-xs">{account.steamId64}</span>
                         <button
                           onClick={() => handleCopy(account.steamId64, `sid-${account.id}`)}
                           className="text-slate-500 hover:text-cyan-400"
@@ -407,13 +692,20 @@ HOW TO ACCESS:
                       <span className="text-slate-500">VAC / Security:</span>
                       <span className="text-emerald-400 flex items-center gap-1">
                         <ShieldCheck className="w-3 h-3" />
-                        <span>{account.vacStatus} • Steam Guard ({account.steamGuard})</span>
+                        <span>{account.vacStatus} • Guard ({account.steamGuard})</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-[11px]">
+                      <span className="text-slate-500">Playtime Tracked:</span>
+                      <span className="text-slate-300 font-mono">
+                        {account.totalPlaytimeHours || 0} hrs
                       </span>
                     </div>
                   </div>
 
                   {/* Assigned Games Preview */}
-                  <div className="space-y-1.5 mb-4">
+                  <div className="space-y-1.5 mb-3">
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-slate-400 font-medium flex items-center gap-1">
                         <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
@@ -427,14 +719,14 @@ HOW TO ACCESS:
                       </button>
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto pr-1">
+                    <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto pr-1">
                       {accountGamesList.length === 0 ? (
                         <span className="text-xs text-slate-600 italic">No games assigned yet</span>
                       ) : (
                         accountGamesList.map(game => (
                           <span
                             key={game.appId}
-                            className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 text-[11px] truncate max-w-[200px]"
+                            className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 text-[11px] truncate max-w-[180px]"
                             title={game.title}
                           >
                             {game.title}
@@ -443,22 +735,14 @@ HOW TO ACCESS:
                       )}
                     </div>
                   </div>
-
-                  {/* Notes / Tags */}
-                  {account.notes && (
-                    <div className="text-[11px] text-slate-400 bg-slate-950/40 p-2 rounded border border-slate-800/60 mb-3">
-                      <span className="text-slate-500 font-bold">Notes: </span>
-                      <span>{account.notes}</span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Footer Action Buttons */}
-                <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 gap-2">
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setDistributionModalAccount(account)}
-                      className="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition"
+                      className="px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition"
                     >
                       <Share2 className="w-3.5 h-3.5" />
                       <span>Handoff Card</span>
@@ -490,10 +774,195 @@ HOW TO ACCESS:
         </div>
       )}
 
+      {/* Modal: Bulk Assign Games to Multiple Accounts */}
+      {isBulkAssignModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Gamepad2 className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-base font-bold text-white">
+                  Bulk Assign Games ({selectedCount} Accounts)
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsBulkAssignModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Select one or more titles from your 100+ paid games catalog to link across all {selectedCount} selected accounts simultaneously.
+            </p>
+
+            {/* Game Search Bar */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5 pointer-events-none" />
+              <input
+                type="text"
+                value={bulkGameSearchQuery}
+                onChange={(e) => setBulkGameSearchQuery(e.target.value)}
+                placeholder="Search catalog titles or genres..."
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* Games Checklist */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[200px]">
+              {games
+                .filter(g => 
+                  g.title.toLowerCase().includes(bulkGameSearchQuery.toLowerCase()) ||
+                  g.genre.some(gen => gen.toLowerCase().includes(bulkGameSearchQuery.toLowerCase()))
+                )
+                .slice(0, 40)
+                .map(game => {
+                  const isChecked = bulkSelectedGameIds.has(game.appId);
+                  return (
+                    <div
+                      key={game.appId}
+                      onClick={() => {
+                        setBulkSelectedGameIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(game.appId)) next.delete(game.appId);
+                          else next.add(game.appId);
+                          return next;
+                        });
+                      }}
+                      className={`p-2.5 rounded-lg border flex items-center justify-between text-xs cursor-pointer transition ${
+                        isChecked
+                          ? 'bg-indigo-950/60 border-indigo-600 text-white'
+                          : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                          isChecked ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700'
+                        }`}>
+                          {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                        <div className="truncate">
+                          <div className="font-semibold truncate">{game.title}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">
+                            AppID: {game.appId} • ${game.currentPrice.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0 font-mono">
+                        {game.genre[0] || 'Game'}
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <span className="text-xs text-slate-400 font-mono">
+                {bulkSelectedGameIds.size} game(s) selected
+              </span>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkAssignModalOpen(false)}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteBulkAssignGames}
+                  disabled={bulkSelectedGameIds.size === 0}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Assign to {selectedCount} Accounts</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Bulk Export */}
+      {isBulkExportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Download className="w-5 h-5 text-cyan-400" />
+                <h3 className="text-base font-bold text-white">
+                  Bulk Export ({selectedCount} Selected Accounts)
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsBulkExportModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Export account credentials and assigned libraries in bulk as a structured JSON file or formatted client distribution packages.
+            </p>
+
+            <div className="flex-1 overflow-y-auto space-y-3">
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDownloadBulkJson}
+                  className="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
+                >
+                  <Download className="w-4 h-4 text-cyan-400" />
+                  <span>Download .JSON Vault File</span>
+                </button>
+
+                <button
+                  onClick={() => handleCopy(getBulkExportHandoffText(), 'bulk-handoff')}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition shadow"
+                >
+                  {copiedId === 'bulk-handoff' ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-300" />
+                      <span>Copied All Packages!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-cyan-200" />
+                      <span>Copy All Handoff Cards</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Preview */}
+              <div className="relative">
+                <pre className="w-full bg-slate-950 p-4 rounded-xl text-[11px] font-mono text-cyan-300 border border-slate-800 whitespace-pre-wrap max-h-56 overflow-y-auto">
+                  {getBulkExportHandoffText()}
+                </pre>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsBulkExportModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Import Real Steam Profile */}
       {isImportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <Globe className="w-5 h-5 text-cyan-400" />
@@ -578,8 +1047,8 @@ HOW TO ACCESS:
 
       {/* Distribution Package Modal */}
       {distributionModalAccount && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <Share2 className="w-5 h-5 text-cyan-400" />
@@ -626,8 +1095,8 @@ HOW TO ACCESS:
 
       {/* Game Picker / Library Association Modal */}
       {gamePickerModalAccount && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <Gamepad2 className="w-5 h-5 text-purple-400" />
@@ -647,7 +1116,7 @@ HOW TO ACCESS:
               Attach or detach top paid titles and DLCs associated with this account.
             </p>
 
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            <div className="space-y-2 flex-1 overflow-y-auto pr-1">
               {games.length === 0 ? (
                 <div className="p-4 text-center text-slate-500 text-xs">No games loaded yet.</div>
               ) : (
@@ -658,8 +1127,8 @@ HOW TO ACCESS:
                       key={game.appId}
                       className="p-3 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between text-xs"
                     >
-                      <div>
-                        <div className="font-semibold text-slate-200">{game.title}</div>
+                      <div className="min-w-0 pr-2">
+                        <div className="font-semibold text-slate-200 truncate">{game.title}</div>
                         <div className="text-[10px] text-slate-400 font-mono">
                           AppID: {game.appId}
                         </div>
@@ -674,7 +1143,7 @@ HOW TO ACCESS:
                             onAddGameToAccount(gamePickerModalAccount.id, game.appId);
                           }
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition shrink-0 ${
                           isAssigned
                             ? 'bg-red-950/60 text-red-400 border border-red-800/80 hover:bg-red-900'
                             : 'bg-indigo-600 text-white hover:bg-indigo-500'
@@ -688,7 +1157,7 @@ HOW TO ACCESS:
               )}
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setGamePickerModalAccount(null)}
