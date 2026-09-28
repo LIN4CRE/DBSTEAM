@@ -4,6 +4,7 @@
   "description": "Next-Gen Steam & Gaming Account Hub: SteamDB paid games intelligence, cloud save vault, Lua automation scripting, and profile verification.",
   "private": true,
   "type": "module",
+  "main": "desktop-main.cjs",
   "author": "David Linacre <davidlinacre@hotmail.co.uk> (https://github.com/LIN4CRE)",
   "homepage": "https://lin4cre.github.io/DBSTEAM/",
   "repository": {
@@ -24,6 +25,8 @@
     "account-manager",
     "android-apk",
     "capacitor",
+    "electron",
+    "desktop-app",
     "gemini-ai"
   ],
   "scripts": {
@@ -33,6 +36,8 @@
     "build:cap": "vite build && cap sync",
     "cap:sync": "cap sync",
     "cap:open": "cap open android",
+    "desktop:start": "electron desktop-main.cjs",
+    "desktop:build": "vite build && electron-builder --win",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },
@@ -58,6 +63,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",

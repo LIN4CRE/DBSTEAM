@@ -1,0 +1,44 @@
+{
+  "appId": "site.linacre.dbsteam",
+  "productName": "DBSTEAM",
+  "copyright": "Copyright © 2026 David Linacre (https://linacre.site)",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "desktop-main.cjs",
+    "desktop-server.cjs",
+    "preload.js",
+    "assets/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "assets/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "DBSTEAM Hub",
+    "runAfterFinish": true,
+    "installerIcon": "assets/icon.ico",
+    "uninstallerIcon": "assets/icon.ico",
+    "artifactName": "DBSTEAM-Setup-${version}.${ext}"
+  },
+  "portable": {
+    "artifactName": "DBSTEAM-v${version}-Portable.${ext}"
+  }
+}

@@ -14,10 +14,12 @@
 [![React 19](https://img.shields.io/badge/React-19.0-61DAFB.svg?logo=react)](https://react.dev/)
 [![Tailwind CSS v4](https://img.shields.io/badge/Tailwind-4.3-38B2AC.svg?logo=tailwind-css)](https://tailwindcss.com/)
 [![Capacitor](https://img.shields.io/badge/Capacitor-8.5-119EFF.svg?logo=capacitor)](https://capacitorjs.com/)
+[![Electron](https://img.shields.io/badge/Electron-44.4-47848F.svg?logo=electron)](https://www.electronjs.org/)
+[![Windows](https://img.shields.io/badge/Windows-11_Ready-0078D6.svg?logo=windows-11)](https://github.com/LIN4CRE/DBSTEAM/releases/latest)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6.svg?logo=typescript)](https://www.typescriptlang.org/)
 [![Google Gemini AI](https://img.shields.io/badge/Google-Gemini_AI-4285F4.svg?logo=google)](https://deepmind.google/technologies/gemini/)
 
-**[🌐 Live Web Portal](https://lin4cre.github.io/DBSTEAM/)** • **[📦 Download Android APK](https://github.com/LIN4CRE/DBSTEAM/releases/latest)** • **[📖 Documentation](#-table-of-contents)** • **[🚀 Quick Start](#-quick-start)**
+**[💻 Download Windows Installer (.exe)](https://github.com/LIN4CRE/DBSTEAM/releases/latest)** • **[⚡ Download Windows Portable (.exe)](https://github.com/LIN4CRE/DBSTEAM/releases/latest)** • **[📦 Download Android APK](https://github.com/LIN4CRE/DBSTEAM/releases/latest)** • **[🌐 Live Web Portal](https://lin4cre.github.io/DBSTEAM/)**
 
 ---
 
@@ -192,6 +194,32 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 bun run build
 # or
 npm run build
+```
+
+---
+
+## 🖥️ Windows Desktop Application (.exe)
+
+DBSTEAM is packaged as a high-performance native Windows 11 desktop application powered by Electron with an embedded Express telemetry engine, system tray integration, single-instance enforcement, and native window menus.
+
+### Option A: Direct Executable Download (Fastest)
+1. Head to the **[Latest GitHub Release](https://github.com/LIN4CRE/DBSTEAM/releases/latest)**.
+2. Choose your preferred package:
+   - **`DBSTEAM-Setup-1.0.0.exe`**: Full Windows installer with desktop shortcuts, Start Menu integration, and automatic uninstaller.
+   - **`DBSTEAM-v1.0.0-Portable.exe`**: Zero-install standalone executable. Download, double-click, and run immediately on any Windows PC.
+
+### Option B: Run & Build Desktop Locally
+```bash
+# 1. Start Desktop in Development Mode
+npm run desktop:start
+
+# 2. Package Production Windows Executables (.exe)
+npm run desktop:build
+
+# Outputs generated in release/:
+# release/DBSTEAM-Setup-1.0.0.exe
+# release/DBSTEAM-v1.0.0-Portable.exe
+# release/win-unpacked/DBSTEAM.exe
 ```
 
 ---

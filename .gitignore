@@ -32,3 +32,5 @@ android/.idea/
 *.keystore
 *.jks
 *.apk
+release/
+*.exe
