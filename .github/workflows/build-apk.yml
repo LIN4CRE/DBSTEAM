@@ -60,12 +60,16 @@ jobs:
           Copy-Item $apk.FullName -Destination "./DBSTEAM-v1.0.0.apk" -Force
           "apk_path=./DBSTEAM-v1.0.0.apk" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Upload Debug APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: DBSTEAM-Android-APK
-          path: ./DBSTEAM-v1.0.0.apk
-          retention-days: 30
+      - name: Verify Artifact Ready
+        shell: pwsh
+        run: |
+          if (Test-Path "./DBSTEAM-v1.0.0.apk") {
+            $size = (Get-Item "./DBSTEAM-v1.0.0.apk").Length / 1MB
+            Write-Host ("DBSTEAM APK successfully compiled: {0:N2} MB" -f $size)
+          } else {
+            Write-Error "APK file not found!"
+            exit 1
+          }
 
       - name: Create GitHub Release & Attach APK
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
