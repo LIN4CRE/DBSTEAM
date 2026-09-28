@@ -1,0 +1,6 @@
+{
+  "name": "Steam & Game Account Hub",
+  "description": "Gaming account manager, SteamDB-powered top paid games discovery, cloud save backups, and library synchronization dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
