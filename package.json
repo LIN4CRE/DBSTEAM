@@ -1,17 +1,45 @@
 {
-  "name": "react-example",
+  "name": "dbsteam",
+  "version": "1.0.0",
+  "description": "Next-Gen Steam & Gaming Account Hub: SteamDB paid games intelligence, cloud save vault, Lua automation scripting, and profile verification.",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
+  "author": "David Linacre <davidlinacre@hotmail.co.uk> (https://github.com/LIN4CRE)",
+  "homepage": "https://lin4cre.github.io/DBSTEAM/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LIN4CRE/DBSTEAM.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LIN4CRE/DBSTEAM/issues"
+  },
+  "license": "MIT",
+  "keywords": [
+    "steam",
+    "steamdb",
+    "game-library",
+    "cloud-saves",
+    "lua-scripts",
+    "gaming-hub",
+    "account-manager",
+    "android-apk",
+    "capacitor",
+    "gemini-ai"
+  ],
   "scripts": {
     "dev": "tsx server.ts",
-    "start": "node server.ts",
+    "start": "tsx server.ts",
     "build": "vite build",
+    "build:cap": "vite build && cap sync",
+    "cap:sync": "cap sync",
+    "cap:open": "cap open android",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
@@ -25,6 +53,7 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -32,7 +61,6 @@
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2",
-    "@types/express": "^4.17.21"
+    "typescript": "^7.0.2"
   }
 }

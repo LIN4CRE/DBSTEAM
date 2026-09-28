@@ -1,0 +1,8 @@
+{
+  "appId": "com.linacre.dbsteam",
+  "appName": "DBSTEAM Hub",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
