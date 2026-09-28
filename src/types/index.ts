@@ -19,6 +19,9 @@ export interface SteamAccount {
   notes: string;
   assignedGames: number[]; // appIds
   tags: string[];
+  avatarUrl?: string;
+  customUrl?: string;
+  isRealProfile?: boolean;
 }
 
 export interface GameTitle {
@@ -30,13 +33,13 @@ export interface GameTitle {
   currentPrice: number;
   discountPercent: number;
   currentPlayers: number;
-  peakPlayers: number;
-  reviewScorePercent: number;
-  reviewCount: number;
-  releaseDate: string;
-  storageGb: number;
+  peakPlayers?: number;
+  reviewScorePercent?: number;
+  reviewCount?: number;
+  releaseDate?: string;
+  storageGb?: number;
   imageUrl: string;
-  headerUrl: string;
+  headerUrl?: string;
   description: string;
   isInstalled?: boolean;
 }
@@ -49,6 +52,8 @@ export interface CloudSaveBackup {
   accountUsername: string;
   version: string;
   fileSizeBytes: number;
+  fileName?: string;
+  fileData?: string; // base64 or text for real file backup
   timestamp: string;
   notes: string;
   status: 'synced' | 'local_newer' | 'conflict' | 'uploading';
@@ -60,7 +65,7 @@ export interface SyncLogEntry {
   timestamp: string;
   accountId: string;
   accountUsername: string;
-  action: 'library_sync' | 'credentials_check' | 'cloud_save_sync' | 'achievement_refresh' | 'status_ping';
+  action: 'library_sync' | 'credentials_check' | 'cloud_save_sync' | 'achievement_refresh' | 'status_ping' | 'profile_verified';
   status: 'success' | 'warning' | 'error';
   latencyMs: number;
   details: string;

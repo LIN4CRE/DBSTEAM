@@ -1,296 +1,122 @@
 import { SteamAccount, GameTitle, CloudSaveBackup, SyncLogEntry } from '../types';
 
-export const INITIAL_GAMES: GameTitle[] = [
+// Zero fake accounts - user must import or register real accounts
+export const INITIAL_ACCOUNTS: SteamAccount[] = [];
+
+// Zero fake cloud saves - only real user-uploaded saves
+export const INITIAL_CLOUD_SAVES: CloudSaveBackup[] = [];
+
+// Zero fake sync logs - only logs from real actions and network probes
+export const INITIAL_SYNC_LOGS: SyncLogEntry[] = [];
+
+// Curated verified real Steam App IDs with real official Steam CDN assets
+export const CURATED_STEAM_GAMES: GameTitle[] = [
   {
     appId: 2358720,
     title: 'Black Myth: Wukong',
     genre: ['Action', 'RPG', 'Soulslike'],
-    platforms: ['Steam', 'Epic', 'PlayStation'],
+    platforms: ['Steam', 'PlayStation'],
     originalPrice: 59.99,
     currentPrice: 59.99,
     discountPercent: 0,
-    currentPlayers: 482190,
+    currentPlayers: 0, // Loaded dynamically from Valve API
     peakPlayers: 2415714,
     reviewScorePercent: 96,
     reviewCount: 712000,
     releaseDate: 'Aug 20, 2024',
     storageGb: 130,
-    imageUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80',
-    headerUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/2358720/header.jpg',
+    headerUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/2358720/header.jpg',
     description: 'An action RPG rooted in Chinese mythology. Journey west as the Destined One to uncover the obscured truth beneath a glorious legend.'
   },
   {
     appId: 1245620,
-    title: 'ELDEN RING: Shadow of the Erdtree',
+    title: 'ELDEN RING',
     genre: ['RPG', 'Action', 'Open World', 'Soulslike'],
     platforms: ['Steam', 'PlayStation', 'Xbox'],
-    originalPrice: 79.99,
+    originalPrice: 59.99,
     currentPrice: 59.99,
-    discountPercent: 25,
-    currentPlayers: 184500,
+    discountPercent: 0,
+    currentPlayers: 0,
     peakPlayers: 953426,
     reviewScorePercent: 92,
     reviewCount: 654000,
-    releaseDate: 'Jun 21, 2024',
+    releaseDate: 'Feb 25, 2022',
     storageGb: 60,
-    imageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80',
-    headerUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
-    description: 'The Golden Order has been broken. Rise, Tarnished, and be guided by grace to brandish the power of the Elden Ring and become an Elden Lord.'
+    imageUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1245620/header.jpg',
+    headerUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1245620/header.jpg',
+    description: 'A fantasy action-RPG adventure through the Lands Between, brandishing the power of the Elden Ring.'
   },
   {
     appId: 1086940,
     title: "Baldur's Gate 3",
-    genre: ['RPG', 'Strategy', 'Turn-Based', 'Story Rich'],
+    genre: ['RPG', 'Strategy', 'Turn-Based'],
     platforms: ['Steam', 'GOG', 'PlayStation', 'Xbox'],
     originalPrice: 59.99,
     currentPrice: 47.99,
     discountPercent: 20,
-    currentPlayers: 112400,
+    currentPlayers: 0,
     peakPlayers: 875343,
     reviewScorePercent: 96,
     reviewCount: 590000,
     releaseDate: 'Aug 3, 2023',
     storageGb: 150,
-    imageUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80',
-    headerUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
-    description: 'Gather your party and return to the Forgotten Realms in a tale of fellowship and betrayal, sacrifice and survival, and the lure of absolute power.'
+    imageUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1086940/header.jpg',
+    headerUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1086940/header.jpg',
+    description: 'An expansive party-based RPG set in the Dungeons & Dragons universe.'
   },
   {
     appId: 553850,
     title: 'HELLDIVERS 2',
-    genre: ['Action', 'Shooter', 'Co-op', 'Sci-fi'],
+    genre: ['Action', 'Shooter', 'Co-op'],
     platforms: ['Steam', 'PlayStation'],
     originalPrice: 39.99,
-    currentPrice: 31.99,
-    discountPercent: 20,
-    currentPlayers: 68400,
+    currentPrice: 39.99,
+    discountPercent: 0,
+    currentPlayers: 0,
     peakPlayers: 458709,
     reviewScorePercent: 78,
     reviewCount: 382000,
     releaseDate: 'Feb 8, 2024',
     storageGb: 70,
-    imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80',
-    headerUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
-    description: 'Join the Helldivers and fight for freedom across a hostile galaxy in a fast, frantic, and ferocious third-person shooter.'
+    imageUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/553850/header.jpg',
+    headerUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/553850/header.jpg',
+    description: 'Third-person squad-based shooter where Helldivers enlist to fight for Galactic freedom.'
   },
   {
-    appId: 1623730,
-    title: 'Palworld',
-    genre: ['Survival', 'Open World', 'Creature Collector', 'Crafting'],
-    platforms: ['Steam', 'Xbox', 'PlayStation'],
-    originalPrice: 29.99,
-    currentPrice: 29.99,
+    appId: 730,
+    title: 'Counter-Strike 2',
+    genre: ['Action', 'Shooter', 'Competitive'],
+    platforms: ['Steam'],
+    originalPrice: 0.00,
+    currentPrice: 0.00,
     discountPercent: 0,
-    currentPlayers: 54200,
-    peakPlayers: 2101867,
-    reviewScorePercent: 93,
-    reviewCount: 312000,
-    releaseDate: 'Jan 19, 2024',
-    storageGb: 40,
-    imageUrl: 'https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?auto=format&fit=crop&w=600&q=80',
-    headerUrl: 'https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?auto=format&fit=crop&w=1200&q=80',
-    description: 'Fight, farm, build and work alongside mysterious creatures called "Pals" in this completely new multiplayer, open world survival and crafting game!'
+    currentPlayers: 0,
+    peakPlayers: 1818773,
+    reviewScorePercent: 88,
+    reviewCount: 8120000,
+    releaseDate: 'Sep 27, 2023',
+    storageGb: 85,
+    imageUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/730/header.jpg',
+    headerUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/730/header.jpg',
+    description: 'The premier competitive tactical first-person shooter powered by the Source 2 engine.'
   },
   {
     appId: 1091500,
-    title: 'Cyberpunk 2077: Phantom Liberty',
+    title: 'Cyberpunk 2077',
     genre: ['RPG', 'Action', 'Open World', 'Sci-fi'],
     platforms: ['Steam', 'Epic', 'GOG', 'PlayStation', 'Xbox'],
     originalPrice: 59.99,
     currentPrice: 29.99,
     discountPercent: 50,
-    currentPlayers: 48900,
+    currentPlayers: 0,
     peakPlayers: 1054388,
     reviewScorePercent: 88,
     reviewCount: 680000,
-    releaseDate: 'Sep 26, 2023',
+    releaseDate: 'Dec 10, 2020',
     storageGb: 70,
-    imageUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80',
-    headerUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
-    description: 'An open-world, action-adventure RPG set in the dark future of Night City. Phantom Liberty is a spy-thriller expansion for Cyberpunk 2077.'
-  },
-  {
-    appId: 1174180,
-    title: 'Red Dead Redemption 2',
-    genre: ['Open World', 'Action', 'Story Rich', 'Western'],
-    platforms: ['Steam', 'Epic', 'PlayStation', 'Xbox'],
-    originalPrice: 59.99,
-    currentPrice: 19.79,
-    discountPercent: 67,
-    currentPlayers: 62100,
-    peakPlayers: 77655,
-    reviewScorePercent: 91,
-    reviewCount: 520000,
-    releaseDate: 'Dec 5, 2019',
-    storageGb: 120,
-    imageUrl: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=600&q=80',
-    headerUrl: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=1200&q=80',
-    description: 'Winner of over 175 Game of the Year Awards, RDR2 is an epic tale of honor and loyalty at the dawn of the modern age.'
-  },
-  {
-    appId: 2246340,
-    title: 'Monster Hunter Wilds',
-    genre: ['Action', 'RPG', 'Hunting', 'Co-op'],
-    platforms: ['Steam', 'PlayStation', 'Xbox'],
-    originalPrice: 69.99,
-    currentPrice: 69.99,
-    discountPercent: 0,
-    currentPlayers: 295400,
-    peakPlayers: 460000,
-    reviewScorePercent: 89,
-    reviewCount: 85000,
-    releaseDate: 'Feb 28, 2025',
-    storageGb: 140,
-    imageUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=600&q=80',
-    headerUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1200&q=80',
-    description: 'The unbridled fury of nature runs wild in the Forbidden Lands. Track formidable monsters in dynamically changing ecosystems.'
-  }
-];
-
-export const INITIAL_ACCOUNTS: SteamAccount[] = [
-  {
-    id: 'acc-top-paid-1',
-    username: 'PrimeTopTier_01',
-    email: '100+top_paid-1@protonmail.com',
-    passwordHash: 'P@ssw0rd_987x!V',
-    steamId64: '76561198902847102',
-    status: 'ready_for_distribution',
-    vacStatus: 'Clean',
-    communityBan: false,
-    tradeHold: false,
-    gamesCount: 8,
-    totalPlaytimeHours: 245.5,
-    walletBalance: '$12.50 USD',
-    steamGuard: 'Email',
-    createdAt: '2026-09-20',
-    lastSynced: '2026-09-28 09:40:12',
-    notes: 'Configured for Giveaway #100. All top-played titles loaded, save files synced.',
-    assignedGames: [2358720, 1245620, 1086940, 553850, 1623730, 1091500, 1174180, 2246340],
-    tags: ['Primary Giveaway', 'Top Paid Tier', 'No Phone Needed']
-  },
-  {
-    id: 'acc-top-paid-2',
-    username: 'ApexVault_Alpha',
-    email: '100+top_paid-2@skiff.world',
-    passwordHash: 'K#92mL*qR44!z',
-    steamId64: '76561198902847199',
-    status: 'active',
-    vacStatus: 'Clean',
-    communityBan: false,
-    tradeHold: false,
-    gamesCount: 4,
-    totalPlaytimeHours: 89.2,
-    walletBalance: '$0.00 USD',
-    steamGuard: 'Email',
-    createdAt: '2026-09-22',
-    lastSynced: '2026-09-28 09:12:05',
-    notes: 'RPG & Soulslike focus bundle. Ready for client handoff.',
-    assignedGames: [1245620, 1086940, 2358720, 1091500],
-    tags: ['RPG Bundle', 'Verified']
-  },
-  {
-    id: 'acc-top-paid-3',
-    username: 'CoopTitan_Beta',
-    email: '100+top_paid-3@tutanota.de',
-    passwordHash: 'Z!88xN&wW23$p',
-    steamId64: '76561198902848201',
-    status: 'pending_verification',
-    vacStatus: 'Clean',
-    communityBan: false,
-    tradeHold: true,
-    gamesCount: 2,
-    totalPlaytimeHours: 12.0,
-    walletBalance: '$5.00 USD',
-    steamGuard: 'Disabled',
-    createdAt: '2026-09-26',
-    lastSynced: '2026-09-27 18:22:10',
-    notes: 'Needs email verification confirmation token check.',
-    assignedGames: [553850, 1623730],
-    tags: ['Co-op Starter', 'Pending']
-  }
-];
-
-export const INITIAL_CLOUD_SAVES: CloudSaveBackup[] = [
-  {
-    id: 'save-wukong-01',
-    appId: 2358720,
-    gameTitle: 'Black Myth: Wukong',
-    accountId: 'acc-top-paid-1',
-    accountUsername: 'PrimeTopTier_01',
-    version: 'Chapter 4 - Final Boss Ready',
-    fileSizeBytes: 14205600, // ~13.5MB
-    timestamp: '2026-09-27 21:15:00',
-    notes: 'NG+ slot, Max relics, Level 105 Destined One',
-    status: 'synced',
-    checksum: 'sha256-a94f8e21bc8945de99'
-  },
-  {
-    id: 'save-elden-01',
-    appId: 1245620,
-    gameTitle: 'ELDEN RING: Shadow of the Erdtree',
-    accountId: 'acc-top-paid-1',
-    accountUsername: 'PrimeTopTier_01',
-    version: 'DLC Pre-Consort Radahn Save',
-    fileSizeBytes: 28400100, // ~27MB
-    timestamp: '2026-09-26 14:02:40',
-    notes: 'Scadutree Blessing Lv 19, All Remembrance weapons unlocked',
-    status: 'synced',
-    checksum: 'sha256-78bdf1290aaee41299'
-  },
-  {
-    id: 'save-bg3-01',
-    appId: 1086940,
-    gameTitle: "Baldur's Gate 3",
-    accountId: 'acc-top-paid-2',
-    accountUsername: 'ApexVault_Alpha',
-    version: 'Act 3 - Honor Mode Save State',
-    fileSizeBytes: 42100800,
-    timestamp: '2026-09-25 19:30:11',
-    notes: 'Level 12 Paladin/Sorcerer build with legendary equipment',
-    status: 'synced',
-    checksum: 'sha256-c34091ab127ffed101'
-  }
-];
-
-export const INITIAL_SYNC_LOGS: SyncLogEntry[] = [
-  {
-    id: 'log-001',
-    timestamp: '09:40:12',
-    accountId: 'acc-top-paid-1',
-    accountUsername: 'PrimeTopTier_01',
-    action: 'library_sync',
-    status: 'success',
-    latencyMs: 142,
-    details: 'Verified 8 licensed titles via Steamworks Web API probe. No license discrepancies found.'
-  },
-  {
-    id: 'log-002',
-    timestamp: '09:39:55',
-    accountId: 'acc-top-paid-1',
-    accountUsername: 'PrimeTopTier_01',
-    action: 'cloud_save_sync',
-    status: 'success',
-    latencyMs: 310,
-    details: 'Cloud save snapshot verified for Black Myth: Wukong (13.5MB SHA256 verified).'
-  },
-  {
-    id: 'log-003',
-    timestamp: '09:12:05',
-    accountId: 'acc-top-paid-2',
-    accountUsername: 'ApexVault_Alpha',
-    action: 'credentials_check',
-    status: 'success',
-    latencyMs: 98,
-    details: 'Session token active. VAC clean confirmed. Steam Guard email notification verified.'
-  },
-  {
-    id: 'log-004',
-    timestamp: '08:45:22',
-    accountId: 'acc-top-paid-3',
-    accountUsername: 'CoopTitan_Beta',
-    action: 'status_ping',
-    status: 'warning',
-    latencyMs: 420,
-    details: 'Steam Guard inactive: account flagged as Limited User ($5 initial spend required to lift community limits).'
+    imageUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1091500/header.jpg',
+    headerUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/1091500/header.jpg',
+    description: 'An open-world action-adventure RPG set in the megalopolis of Night City.'
   }
 ];
